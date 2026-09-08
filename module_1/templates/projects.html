@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Khaled Al-Hassan – Projects</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+</head>
+<body>
+  <nav>
+    <ul class="menu">
+      <li><a href="{{ url_for('pages.home') }}">Home</a></li>
+      <li><a class="active" href="{{ url_for('pages.projects') }}">Projects</a></li>
+      <li><a href="{{ url_for('pages.contact') }}">Contact</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Projects</h1>
+
+    <div class="project">
+      <h3>Module 1: Personal Website with Flask</h3>
+      <p>A three-page personal site (Home, Projects, Contact) built with Flask on Python 3.12. Each page is an HTML template served by its own route inside a Flask blueprint, styled with a shared external stylesheet, with a navigation bar that highlights the current page. Runs locally on port 8080.</p>
+      <p><a href="https://github.com/khalidalhassan10/jhu_software_concepts/tree/main/module_1">View the code on GitHub</a></p>
+    </div>
+
+    <div class="project">
+      <h3>Marsoom.ai</h3>
+      <p><a href="https://www.marsoom.ai">Marsoom.ai</a> is a legal chatbot that uses RAG (Retrieval-Augmented Generation) to assist legal professionals while limiting AI hallucinations.</p>
+    </div>
+  </main>
+
+  <footer>Built with Flask · Qatar</footer>
+</body>
+</html>

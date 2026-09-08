@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Khaled Al-Hassan – Home</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+</head>
+<body>
+  <nav>
+    <ul class="menu">
+      <li><a class="active" href="{{ url_for('pages.home') }}">Home</a></li>
+      <li><a href="{{ url_for('pages.projects') }}">Projects</a></li>
+      <li><a href="{{ url_for('pages.contact') }}">Contact</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Khaled Al-Hassan (He/Him)</h1>
+    <h2 class="position">Founder &amp; CEO of Marsoom.ai</h2>
+
+    <div class="bio-row">
+      <div class="bio">
+        <p>Hello, and welcome to my biography. I'm Khaled Al-Hassan, attending this course all the way from Qatar! I attached a picture of me wearing my national attire. I graduated from Texas A&amp;M University at Qatar two years ago with a Bachelor of Science in Mechanical Engineering. I'm interested in technology and gaming, and recently I've become deeply interested in AI, which is why I'm planning to pursue my master's in AI at JHU.</p>
+      </div>
+      <figure class="portrait">
+        <img src="{{ url_for('static', filename='me.png') }}" alt="Khaled Al-Hassan wearing Qatari national attire">
+        <figcaption>Wearing Qatari national attire</figcaption>
+      </figure>
+    </div>
+  </main>
+
+  <footer>Built with Flask · Qatar</footer>
+</body>
+</html>

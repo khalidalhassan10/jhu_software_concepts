@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Khaled Al-Hassan – Contact</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/home.css') }}">
+</head>
+<body>
+  <nav>
+    <ul class="menu">
+      <li><a href="{{ url_for('pages.home') }}">Home</a></li>
+      <li><a href="{{ url_for('pages.projects') }}">Projects</a></li>
+      <li><a class="active" href="{{ url_for('pages.contact') }}">Contact</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Contact</h1>
+    <ul class="info-list">
+      <li>Email: <a href="mailto:Kalhass2@jh.edu">Kalhass2@jh.edu</a></li>
+      <li>LinkedIn: <a href="https://www.linkedin.com/in/k-a-583a15360">linkedin.com/in/k-a-583a15360</a></li>
+    </ul>
+  </main>
+
+  <footer>Built with Flask · Qatar</footer>
+</body>
+</html>
