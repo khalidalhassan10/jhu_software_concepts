@@ -170,10 +170,10 @@ its program string, and every row keeps its own other fields.
 llm_hosting/work/ holds app.py's per-string outputs (after app.py's own
 post-processing). Cached answers are keyed by the input string; if app.py,
 the model or the canonical lists change, delete work/ to reprocess every
-string. If any string has no cached answer at merge time, run_llm.py
-leaves the existing output untouched, writes the partial result to a
-separate file (llm_extend_applicant_data.partial.json) and exits with a
-non-zero status.
+string. If any string has no cached answer at merge time (or only an
+empty, unusable one), run_llm.py leaves the existing output untouched,
+writes the partial result to a separate file
+(llm_extend_applicant_data.partial.json) and exits with a non-zero status.
 
 Changes to the LLM-hosting files (app.py itself is unmodified):
   - added run_llm.py (parallel runner + merge, described above);
@@ -200,18 +200,21 @@ the rules lean on them:
     the canonical list -> that canonical spelling; (3) site text is an
     abbreviation of 4 characters or fewer -> a known expansion (ECE, EECS,
     CS, HCI, ...), else a canonical model answer, else the site's text as
-    written (a lowercase word title-cased, acronyms unchanged) - the model's
-    own guess is never used for an abbreviation, since it invents ("BSS" ->
-    "Bsst"); (4) model answer on the canonical list -> kept, as a real
-    standardization; (5) otherwise the model changed a full name without
-    reaching a canonical one (typo, truncation, hallucination) -> the site's
-    text is kept, title-cased with small words lowered and acronyms intact.
+    written (a lowercase word title-cased, acronyms unchanged) - a
+    non-canonical model guess is rejected for an abbreviation, since the
+    model invents ("BSS" -> "Bsst"); (4) model answer on the canonical list
+    -> kept, as a real standardization; (5) otherwise the model changed a
+    full name without reaching a canonical one (typo, truncation,
+    hallucination) -> the site's text is kept, title-cased with small words
+    lowered and acronyms intact.
   - University: (1) site text already on the canonical list -> that
     canonical spelling; (2) otherwise a table of known fixes, small words
     lowered, acronyms restored from the site's text, and a close match
-    against the canonical list; (3) if the result is the site's name with
-    its leading words dropped ("Medical University of South Carolina" ->
-    "University of South Carolina"), the site's text is kept.
+    against the canonical list; (3) if the model's answer is the site's
+    name plus extra comma-separated words ("Philadelphia, Yale" for
+    "yale"), only the site's part is kept; (4) if the result is the site's
+    name with its leading words dropped ("Medical University of South
+    Carolina" -> "University of South Carolina"), the site's text is kept.
   - Reproduction: from the included files, run_llm.py --merge followed by
     one postfix.py run regenerates llm_extend_applicant_data.json exactly.
 
@@ -222,7 +225,7 @@ Edge cases found and how they were handled:
     Mount Sinai", "Health And Kinesiology"). postfix.py restores acronyms
     from the original scraped university text, lowers connecting words,
     applies a table of known fixes, and re-checks the canonical list.
-    In total postfix.py changed 6,152 rows.
+    In total postfix.py changed 6,165 rows.
   - Variants of one institution were not merged by the model ("Cuny" vs
     "Cuny Graduate Center", "Suny Buffalo", "Washu/Wustl"); mapped by
     postfix.py.
@@ -251,7 +254,7 @@ Edge cases found and how they were handled:
     the canonical list (1,426 rows in total). It also dropped leading words
     from one university ("Medical University of South Carolina" ->
     "University of South Carolina", 20 rows); corrected by university
-    rule 3.
+    rule 4.
   - app.py's own fuzzy matcher (cutoff 0.84) mapped "Geological Sciences"
     to the nearest canonical program, "Biological Sciences" (11 rows);
     corrected by adding the name to canon_programs.txt.

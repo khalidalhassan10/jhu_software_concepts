@@ -28,7 +28,9 @@ the most reliable source, so the rules lean on them:
     1. Site text already on the canonical list -> that canonical spelling.
     2. Otherwise: known fixes -> small words lowered -> acronyms restored from
        the site's text -> known fixes again -> close match on the canonical list.
-    3. If the result is the site's text with leading words dropped
+    3. If the model's answer is the site's text plus extra comma-separated
+       words ("Philadelphia, Yale" for "yale"), only the site's part is kept.
+    4. If the result is the site's text with leading words dropped
        ("Medical University of South Carolina" -> "University of South
        Carolina"), the site's text is kept.
 
@@ -145,11 +147,17 @@ def fix_program(model_value, site_value, canon_lookup):
 
 
 def fix_university(model_value, site_value, canon, canon_lookup):
-    """University rules 1-3 (see module docstring)."""
+    """University rules 1-4 (see module docstring)."""
     site = site_value.strip()
     if site.lower() in canon_lookup:
         return canon_lookup[site.lower()]
-    value = FIXES.get(model_value, model_value)
+    value = model_value
+    if site and "," in value:                 # "Philadelphia, Yale" for site text "yale"
+        for part in value.split(","):
+            if part.strip().lower() == site.lower():
+                value = part.strip().title() if site.islower() else part.strip()
+                break
+    value = FIXES.get(value, value)
     value = _lower_small_words(value)
     value = _restore_acronyms(value, site)
     value = FIXES.get(value, value)

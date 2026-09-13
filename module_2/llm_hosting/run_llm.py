@@ -12,7 +12,7 @@ the same answer. This script therefore:
      chunk at the same time, each limited to THREADS_PER_WORKER CPU threads.
   4. Merges the answers back onto every row and writes
      ../llm_extend_applicant_data.json, the assignment's cleaned output.
-     If any string has no cached answer, the existing output file is left
+     If any string has no cached answer (or only an empty one), the output is left
      untouched and the partial result goes to a separate file instead.
 
 Cache policy: answers are keyed by the input string. If app.py, the model, or
@@ -103,9 +103,9 @@ def _merge(done):
 
     missing = 0
     for row in rows:
-        if row["program"] not in done:            # no answer for this string at all
-            missing += 1
         program, university = done.get(row["program"], ("", ""))
+        if row["program"] not in done or (not program and not university):
+            missing += 1                          # no answer, or an unusable (empty) one
         row["llm-generated-program"] = program
         row["llm-generated-university"] = university
 
