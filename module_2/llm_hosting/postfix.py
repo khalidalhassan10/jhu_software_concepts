@@ -1,15 +1,28 @@
 """postfix.py - second post-processing pass over the LLM output (no model calls).
 
-app.py's post-processor title-cases every name before checking the canonical
-list, which breaks acronyms (ETH -> Eth, CUNY -> Cuny, EPFL -> Epfl) and
-capitalizes small words ("At", "And"). This pass repairs those cases:
+Why: app.py's post-processor title-cases every name before checking the
+canonical list (breaking acronyms: ETH -> Eth, CUNY -> Cuny), capitalizes small
+words ("At", "And"), and its fuzzy matcher (cutoff 0.84) can map a name to a
+near neighbour ("Geological Sciences" -> "Biological Sciences"). The model itself
+sometimes truncates program names at a comma or changes their meaning.
 
-  1. known fixes for variants seen in the output (see FIXES),
-  2. small connecting words lowered (at, and, in, de, for, the),
-  3. acronyms restored using the original scraped university text,
-  4. exact / close match against the (extended) canonical list.
+Rules applied to every row, in order:
+  University
+    1. If the site's own university text already matches the canonical list
+       (case-insensitive), use that canonical spelling.
+    2. Otherwise: known fixes -> small words lowered -> acronyms restored from
+       the site's text -> known fixes again -> close match on the canonical list.
+  Program
+    1. If the site's own program text already matches the canonical list, use it.
+    2. If the model's answer shares less than half its characters with the
+       site's text and the site's text is not an abbreviation, keep the site's
+       text (title-cased, small words lowered). This catches truncations
+       ("Black, Race, and Ethnic Studies" -> "Black") and meaning changes
+       ("German" -> "Geometry").
+    3. Otherwise keep the model's answer, small words lowered.
 
-Run from module_2:  python llm_hosting/postfix.py
+Run from module_2 (after run_llm.py --merge):  python llm_hosting/postfix.py
+This pass is deterministic: running it again changes nothing.
 """
 import difflib
 import json
@@ -18,7 +31,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE.parent / "llm_extend_applicant_data.json"
-CANON_FILE = HERE / "canon_universities.txt"
+CANON_UNI_FILE = HERE / "canon_universities.txt"
+CANON_PROG_FILE = HERE / "canon_programs.txt"
 
 FIXES = {
     "Eth Zurich": "ETH Zurich",
@@ -38,9 +52,16 @@ FIXES = {
     "Stanford": "Stanford University",
     "Yale": "Yale University",
     "Princeton": "Princeton University",
+    "Csu East Bay": "California State University, East Bay",
     "CSU East Bay": "California State University, East Bay",
 }
-SMALL_WORDS = re.compile(r"(?<!^)\b(At|And|In|De|For|The|Du|Des|Der)\b")
+SMALL_WORDS = re.compile(r"(?<!^)\b(At|And|In|De|For|The|Du|Des|Der|Of)\b")
+
+
+def _load_canon(path):
+    """Return the canonical names as a list, plus a lowercase -> canonical lookup."""
+    names = [line.strip() for line in open(path, encoding="utf-8") if line.strip()]
+    return names, {name.lower(): name for name in names}
 
 
 def _lower_small_words(name):
@@ -49,7 +70,7 @@ def _lower_small_words(name):
 
 
 def _restore_acronyms(name, original):
-    """Put back all-caps tokens (ETH, UCSB, NYU) that appear in the original text."""
+    """Put back all-caps tokens (ETH, UCSB, NYU) that appear in the site's own text."""
     acronyms = {t.strip("(),") for t in original.split()
                 if t.strip("(),").isupper() and 2 <= len(t.strip("(),")) <= 6}
     words = []
@@ -61,7 +82,7 @@ def _restore_acronyms(name, original):
     return " ".join(words)
 
 
-def _canonical(name, canon):
+def _close_match(name, canon):
     """Exact match on the canonical list, else a close match, else unchanged."""
     if name in canon:
         return name
@@ -69,25 +90,45 @@ def _canonical(name, canon):
     return match[0] if match else name
 
 
+def _similarity(a, b):
+    return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+
+def fix_university(model_value, site_value, canon, canon_lookup):
+    """Rules 1-2 for the university field (see module docstring)."""
+    if site_value.strip().lower() in canon_lookup:
+        return canon_lookup[site_value.strip().lower()]
+    value = FIXES.get(model_value, model_value)
+    value = _lower_small_words(value)
+    value = _restore_acronyms(value, site_value)
+    value = FIXES.get(value, value)
+    return _close_match(value, canon)
+
+
+def fix_program(model_value, site_value, canon_lookup):
+    """Rules 1-3 for the program field (see module docstring)."""
+    site = site_value.strip()
+    if site.lower() in canon_lookup:
+        return canon_lookup[site.lower()]
+    if site and len(site) > 4 and _similarity(site, model_value) < 0.5:
+        return _lower_small_words(site.title())
+    return _lower_small_words(model_value)
+
+
 if __name__ == "__main__":
-    canon = [line.strip() for line in open(CANON_FILE, encoding="utf-8") if line.strip()]
+    canon_unis, uni_lookup = _load_canon(CANON_UNI_FILE)
+    _, prog_lookup = _load_canon(CANON_PROG_FILE)
     rows = json.load(open(DATA, encoding="utf-8"))
 
     changed = 0
     for row in rows:
-        uni = row["llm-generated-university"]
-        prog = row["llm-generated-program"]
-
-        new_uni = FIXES.get(uni, uni)
-        new_uni = _lower_small_words(new_uni)
-        new_uni = _restore_acronyms(new_uni, row.get("university", ""))
-        new_uni = _canonical(new_uni, canon)
-        new_prog = _lower_small_words(prog)
-
-        if new_uni != uni or new_prog != prog:
+        new_uni = fix_university(row["llm-generated-university"], row.get("university", ""),
+                                 canon_unis, uni_lookup)
+        new_prog = fix_program(row["llm-generated-program"], row.get("program_name", ""), prog_lookup)
+        if new_uni != row["llm-generated-university"] or new_prog != row["llm-generated-program"]:
             changed += 1
         row["llm-generated-university"] = new_uni
         row["llm-generated-program"] = new_prog
 
     json.dump(rows, open(DATA, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
-    print(f"Updated {changed} of {len(rows)} rows")
+    print(f"Changed {changed} of {len(rows)} rows")

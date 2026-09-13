@@ -15,7 +15,7 @@ import re
 
 DATA_FILE = "applicant_data.json"
 RAW_FIELDS = ("program", "status")           # kept exactly as scraped
-TAG_PATTERN = re.compile(r"<[^>]+>")          # any leftover <tag>
+TAG_PATTERN = re.compile(r"</?[A-Za-z][^<>]*>")   # a real HTML tag, not "< 3.5"
 
 
 def load_data(filename=DATA_FILE):

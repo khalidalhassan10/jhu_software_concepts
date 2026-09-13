@@ -74,6 +74,8 @@ def _run_workers(pending):
 
     for process in processes:
         process.wait()
+        if process.returncode != 0:
+            print(f"Warning: a worker exited with code {process.returncode}; rerun run_llm.py to finish its strings.")
 
 
 def _merge(done):

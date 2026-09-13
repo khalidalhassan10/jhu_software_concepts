@@ -13,6 +13,7 @@ Run:  python scrape.py
 """
 import base64
 import json
+import os
 import re
 import subprocess
 import time
@@ -65,15 +66,21 @@ end tell
 
 # ------------------------------------------------------------ robots.txt ---
 def _check_robots():
-    """Fetch robots.txt with urllib3 and confirm this scraper may read /survey/."""
+    """Read robots.txt (directly, or via Chrome if the site refuses scripts) and
+    confirm this scraper may read /survey/. Stops if permission can't be established."""
     response = http.request("GET", ROBOTS_URL)
     print(f"robots.txt status: {response.status}")
-    if response.status != 200:
-        print("robots.txt could not be fetched programmatically; "
-              "relying on the manual check (screenshot.jpg, see README).")
-        return True
+    if response.status == 200:
+        text = response.data.decode("utf-8")
+    else:
+        print("robots.txt refused to a script; reading it through the verified Chrome window.")
+        html = _fetch_with_chrome(ROBOTS_URL)
+        if html is None:
+            print("robots.txt could not be read -- stopping.")
+            return False
+        text = BeautifulSoup(html, "html.parser").get_text()
     parser = urllib.robotparser.RobotFileParser()
-    parser.parse(response.data.decode("utf-8").splitlines())
+    parser.parse(text.splitlines())
     allowed = parser.can_fetch(USER_AGENT, START_URL)
     print(f"robots.txt allows {START_URL}: {allowed}")
     return allowed
@@ -81,12 +88,12 @@ def _check_robots():
 
 # -------------------------------------------------------------- fetching ---
 def _fetch_with_urllib3(url):
-    """Try to fetch a page directly. Returns HTML text, or None if the site refuses."""
+    """Fetch a page directly. Returns (status, html); html is None unless status is 200."""
     response = http.request("GET", url)
     if response.status == 200:
-        return response.data.decode("utf-8")
+        return 200, response.data.decode("utf-8")
     print(f"urllib3 received status {response.status} for {url}")
-    return None
+    return response.status, None
 
 
 def _fetch_with_chrome(url):
@@ -216,9 +223,11 @@ def _find_next_url(html, current_url):
 
 # -------------------------------------------------------- save / resume ---
 def save_data(entries, filename=DATA_FILE):
-    """Write the list of entries to a JSON file."""
-    with open(filename, "w", encoding="utf-8") as file:
+    """Write the list of entries to a JSON file atomically (temp file, then rename)."""
+    temp = filename + ".tmp"
+    with open(temp, "w", encoding="utf-8") as file:
         json.dump(entries, file, indent=2, ensure_ascii=False)
+    os.replace(temp, filename)
 
 
 def load_data(filename=DATA_FILE):
@@ -238,8 +247,10 @@ def _load_progress():
 
 def _save_progress(next_url, pages_done):
     """Remember the next page to fetch so a restart resumes instead of starting over."""
-    with open(PROGRESS_FILE, "w", encoding="utf-8") as file:
+    temp = PROGRESS_FILE + ".tmp"
+    with open(temp, "w", encoding="utf-8") as file:
         json.dump({"next_url": next_url, "pages_done": pages_done}, file, indent=2)
+    os.replace(temp, PROGRESS_FILE)
 
 
 # ------------------------------------------------------------- main loop ---
@@ -258,17 +269,24 @@ def scrape_data(target=TARGET_ENTRIES):
     pages_done = progress["pages_done"]
     print(f"Starting with {len(entries)} entries, {pages_done} pages done.")
 
-    # Decide once how pages will be fetched: directly if the site allows it,
-    # otherwise from the verified Chrome window (one polite probe request only).
-    html = _fetch_with_urllib3(url)
-    use_chrome = html is None
-    if use_chrome:
-        print("Direct requests are blocked. Capturing pages from Chrome instead.")
+    # One polite probe request decides how pages are fetched. 403 is the site's
+    # bot protection -> read pages from the browser session a human verified.
+    # Any other refusal (429 rate limit, 5xx) means stop, per the assignment.
+    status, html = _fetch_with_urllib3(url)
+    if status == 403:
+        use_chrome = True
+        print("Direct requests are blocked (403). Capturing pages from the verified Chrome window.")
+    elif status != 200:
+        print(f"The site answered {status} (rate limit or error) -- stopping.")
+        return entries
+    else:
+        use_chrome = False
+    seen_urls = {entry["url"] for entry in entries}
 
     empty_pages = 0
     while len(entries) < target and url:
         if html is None:
-            html = _fetch_with_chrome(url) if use_chrome else _fetch_with_urllib3(url)
+            html = _fetch_with_chrome(url) if use_chrome else _fetch_with_urllib3(url)[1]
         if html is None:
             print("Could not fetch the page -- stopping.")
             break
@@ -285,10 +303,12 @@ def scrape_data(target=TARGET_ENTRIES):
             continue
         empty_pages = 0
 
-        entries.extend(page_entries)
+        new_entries = [entry for entry in page_entries if entry["url"] not in seen_urls]
+        seen_urls.update(entry["url"] for entry in new_entries)
+        entries.extend(new_entries)
         pages_done += 1
         next_url = _find_next_url(html, url)
-        print(f"Page {pages_done}: {len(page_entries)} entries (total {len(entries)})")
+        print(f"Page {pages_done}: {len(new_entries)} new entries (total {len(entries)})")
 
         if pages_done % SAVE_EVERY == 0:
             save_data(entries)
