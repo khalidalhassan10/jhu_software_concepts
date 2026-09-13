@@ -170,9 +170,9 @@ its program string, and every row keeps its own other fields.
 llm_hosting/work/ holds app.py's per-string outputs (after app.py's own
 post-processing). Cached answers are keyed by the input string; if app.py,
 the model or the canonical lists change, delete work/ to reprocess every
-string. If any string has no cached answer at merge time (or only an
-empty, unusable one), run_llm.py leaves the existing output untouched,
-writes the partial result to a separate file
+string. If any string has no cached answer at merge time (or an answer
+that is empty where the site provided a value), run_llm.py leaves the
+existing output untouched, writes the partial result to a separate file
 (llm_extend_applicant_data.partial.json) and exits with a non-zero status.
 
 Changes to the LLM-hosting files (app.py itself is unmodified):
