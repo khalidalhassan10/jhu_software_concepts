@@ -14,9 +14,12 @@ the most reliable source, so the rules lean on them:
     1. Empty on the site -> empty here (missing data is not invented).
     2. Site text already on the canonical list -> that canonical spelling.
     3. Site text is an abbreviation (4 characters or fewer, e.g. "ECE") -> a
-       known expansion if there is one, else a canonical model answer, else the
-       site's text exactly as written (keeps "EECS" rather than "Eecs"), else
-       the model's answer (e.g. "arch" -> "Architecture").
+       known expansion if there is one, else a canonical model answer, else
+       the site's text as written (an all-lowercase word is title-cased:
+       "law" -> "Law"; acronyms keep their capitals: "EECS"). A model answer
+       that is neither canonical nor an exact match is never trusted for an
+       abbreviation, because the model cannot know what "BSS" or "DMA" stands
+       for and tends to invent ("Bsst", "Dmar").
     4. Model's answer is on the canonical list -> kept (a real standardization).
     5. Otherwise the model changed a full name without landing on a canonical
        one (typo, truncation, hallucination) -> the site's text is kept,
@@ -133,9 +136,7 @@ def fix_program(model_value, site_value, canon_lookup):
             return ABBREVIATIONS[site.upper()]
         if model_value.lower() in canon_lookup:
             return canon_lookup[model_value.lower()]
-        if model_value.strip().lower() == site.lower():
-            return site
-        return _lower_small_words(model_value)
+        return site.title() if site.islower() else site
     if model_value.lower() in canon_lookup:
         return canon_lookup[model_value.lower()]
     if model_value.strip().lower() == site.lower():

@@ -71,6 +71,17 @@ def _is_challenge_page(html):
     return "just a moment" in lowered or "verifying you are human" in lowered or "cf-chl" in lowered
 
 
+ROBOTS_DIRECTIVE = re.compile(r"^\s*(user-agent|allow|disallow)\s*:", re.IGNORECASE | re.MULTILINE)
+
+
+def _looks_like_robots(text):
+    """A real robots.txt has directive lines such as 'User-agent:' and 'Disallow:'
+    at the start of lines; prose that merely mentions a user agent does not."""
+    directives = ROBOTS_DIRECTIVE.findall(text)
+    kinds = {d.lower() for d in directives}
+    return "user-agent" in kinds and ("allow" in kinds or "disallow" in kinds)
+
+
 def _check_robots():
     """Read robots.txt (directly, or via Chrome only if the site answers 403 to scripts)
     and confirm this scraper may read /survey/. Stops unless a real robots.txt was
@@ -82,15 +93,15 @@ def _check_robots():
     elif response.status == 403:
         print("robots.txt refused to a script (403); reading it through the verified Chrome window.")
         html = _fetch_with_chrome(ROBOTS_URL)
-        if html is None or _is_challenge_page(html):
-            print("robots.txt could not be read (no page or a verification page) -- stopping.")
+        if html is None:
+            print("robots.txt could not be read through Chrome -- stopping.")
             return False
         text = BeautifulSoup(html, "html.parser").get_text()
     else:
         print(f"robots.txt answered {response.status} (rate limit or error) -- stopping.")
         return False
-    if "user-agent" not in text.lower():
-        print("The text read is not a robots.txt file -- stopping.")
+    if _is_challenge_page(text) or not _looks_like_robots(text):
+        print("What was read is a verification page or not a robots.txt file -- stopping.")
         return False
     parser = urllib.robotparser.RobotFileParser()
     parser.parse(text.splitlines())

@@ -74,8 +74,14 @@ requested. The scraper also checks this programmatically: _check_robots()
 in scrape.py fetches robots.txt with urllib3 (or reads it through the
 verified Chrome window if the site refuses scripts), parses it with
 urllib.robotparser, and stops unless /survey/ is allowed for its user agent.
-A 403 on the results page triggers the browser capture; any other refusal
-(429 rate limit, server error) stops the run.
+The browser route is used only when robots.txt answers 403; any other status
+stops the run, and so does receiving a verification page or anything that is
+not a robots.txt file instead of the file itself: the text read (over either
+route) must contain real directive lines ("User-agent:" plus "Allow:" or
+"Disallow:" at the start of lines), so prose that merely mentions a user
+agent is rejected. A 403 on the results page triggers the browser capture; any
+other refusal (429 rate limit, server error) stops the run, and a
+verification page appearing during collection stops it immediately.
 The data was collected for a course data-analysis exercise, not for
 training an AI model.
 
@@ -126,19 +132,22 @@ Missing values are always the empty string "".
 Resume. Every 10 pages the entries are written to applicant_data.json and
 the next URL to progress.json (each written to a temporary file and then
 renamed, so an interruption cannot leave a half-written file). Entries are
-de-duplicated by URL as they are collected, so a restart from a stale
-checkpoint cannot count a page twice. A crash or sleep loses at most 10
-pages of work.
+de-duplicated by URL as they are collected (across pages and within a page),
+so a restart from a stale checkpoint cannot count a page twice, and no
+results page is requested if the target is already reached (robots.txt is
+still read first). A crash or sleep loses at most 10 pages of work.
 
 ------------------------------------------------------------
 5. Approach: cleaning (clean.py)
 ------------------------------------------------------------
-clean_data() decodes HTML entities (html.unescape), removes any leftover
-HTML tags, collapses whitespace, replaces None with "", and drops duplicate
-URLs. Tag removal matches only real tags (</?[A-Za-z]...>), so comment text
-such as "GPA < 3.5" is preserved; the comments were re-cleaned from the
-original scrape after this rule was tightened. The raw fields program and
-status are never altered.
+clean_data() decodes HTML entities (html.unescape), removes leftover HTML
+tags, collapses whitespace, replaces None with "", and drops duplicate
+URLs. Tag removal matches common HTML tags by name (p, br, b, i, a, em,
+strong, div, span, list and table tags), so comment text such as
+"GPA < 3.5" or "GPA<average" is preserved. Re-cleaning the original scrape
+with this rule produced a file identical to the previous one, confirming
+that no comment had been affected. The raw fields program and status are
+never altered.
 Result on this dataset: 30,000 entries before and after (0 duplicates);
 comments present in 13,926 entries, GPA in 18,108, GRE in 2,392,
 GRE V in 2,006, GRE AW in 1,887; term and decision_date in all 30,000;
@@ -159,7 +168,12 @@ processes in parallel, 5 threads each, ~9 hours) and copies the result to
 every row with that string. Every row receives the standardized values for
 its program string, and every row keeps its own other fields.
 llm_hosting/work/ holds app.py's per-string outputs (after app.py's own
-post-processing).
+post-processing). Cached answers are keyed by the input string; if app.py,
+the model or the canonical lists change, delete work/ to reprocess every
+string. If any string has no cached answer at merge time, run_llm.py
+leaves the existing output untouched, writes the partial result to a
+separate file (llm_extend_applicant_data.partial.json) and exits with a
+non-zero status.
 
 Changes to the LLM-hosting files (app.py itself is unmodified):
   - added run_llm.py (parallel runner + merge, described above);
@@ -168,18 +182,36 @@ Changes to the LLM-hosting files (app.py itself is unmodified):
     Graduate Center, EPFL, University at Buffalo (SUNY), Washington
     University in St. Louis, MIT Media Lab, KU Leuven, UC Santa Barbara,
     Icahn School of Medicine at Mount Sinai, and others);
-  - extended canon_programs.txt with "Geological Sciences" and "German".
+  - extended canon_programs.txt with 18 names ("Geological Sciences",
+    "German", "Computer Science and Engineering", "Religion", "Machine
+    Learning", "Electrical Engineering and Computer Science", "Sociocultural
+    Anthropology", "Environmental Health Sciences", "Biomedical Data
+    Science", "Medical Biophysics", "Africana Studies", "Mental Health
+    Counseling", "Creative Writing Fiction", "Physics and Astronomy",
+    "Aeronautics and Astronautics", "Mass Communication", "Rhetoric",
+    "Educational Studies") and canon_universities.txt with "Medical
+    University of South Carolina".
 
 postfix.py rules (applied to every row, deterministic; a second run
-changes 0 rows):
-  - University: if the site's own university text already matches the
-    canonical list, that canonical spelling is used; otherwise a table of
-    known fixes, small connecting words lowered, acronyms restored from the
-    site's text, and a close match against the canonical list.
-  - Program: if the site's own program text already matches the canonical
-    list, it is used; if the model's answer shares less than half its
-    characters with the site's text (and the site's text is not an
-    abbreviation), the site's text is kept; otherwise the model's answer.
+changes 0 rows). The site's own program and university fields come from
+separate cells of the results table and are the most reliable source, so
+the rules lean on them:
+  - Program: (1) empty on the site -> empty here; (2) site text already on
+    the canonical list -> that canonical spelling; (3) site text is an
+    abbreviation of 4 characters or fewer -> a known expansion (ECE, EECS,
+    CS, HCI, ...), else a canonical model answer, else the site's text as
+    written (a lowercase word title-cased, acronyms unchanged) - the model's
+    own guess is never used for an abbreviation, since it invents ("BSS" ->
+    "Bsst"); (4) model answer on the canonical list -> kept, as a real
+    standardization; (5) otherwise the model changed a full name without
+    reaching a canonical one (typo, truncation, hallucination) -> the site's
+    text is kept, title-cased with small words lowered and acronyms intact.
+  - University: (1) site text already on the canonical list -> that
+    canonical spelling; (2) otherwise a table of known fixes, small words
+    lowered, acronyms restored from the site's text, and a close match
+    against the canonical list; (3) if the result is the site's name with
+    its leading words dropped ("Medical University of South Carolina" ->
+    "University of South Carolina"), the site's text is kept.
   - Reproduction: from the included files, run_llm.py --merge followed by
     one postfix.py run regenerates llm_extend_applicant_data.json exactly.
 
@@ -190,7 +222,7 @@ Edge cases found and how they were handled:
     Mount Sinai", "Health And Kinesiology"). postfix.py restores acronyms
     from the original scraped university text, lowers connecting words,
     applies a table of known fixes, and re-checks the canonical list.
-    In total postfix.py changed 5,014 rows.
+    In total postfix.py changed 6,152 rows.
   - Variants of one institution were not merged by the model ("Cuny" vs
     "Cuny Graduate Center", "Suny Buffalo", "Washu/Wustl"); mapped by
     postfix.py.
@@ -202,8 +234,24 @@ Edge cases found and how they were handled:
     the combined input uses a comma as the program/university separator;
     it changed some meanings ("Comparative Literature" -> "Compare And
     Contrast Literature", 125 rows; "German" -> "Geometry", 11 rows) and
-    occasionally answered in another language. All corrected by the
-    program rules in postfix.py.
+    occasionally answered in another language. Corrected by program rules
+    2 and 5. 26 rows remain where the model shortened a comma-qualified
+    name to a canonical program ("Applied Mathematics, Applied and
+    Computational" -> "Applied Mathematics", "Chemistry, M.Sc." ->
+    "Chemistry"); those shortenings were accepted as standardizations.
+  - The model frequently introduced typos into names it was only asked to
+    standardize: "Religion" -> "Religiion" (65 rows), "Sociocultural
+    Anthropology" -> "Sociocultuural Anthropology" (51), "Electrical
+    Engineering and Computer Science" -> "Ellectrical ..." (51), "Machine
+    Learning" -> "Machinie Learning" (22), "Aeronautics & Astronautics" ->
+    "Aero-Nautics & Astro-Nautics" (45), and many smaller cases; and it
+    substituted a different canonical program in some cases ("Computer
+    Science and Engineering" -> "Computational Science and Engineering",
+    35 rows). Corrected by program rule 5 and by adding the site's names to
+    the canonical list (1,426 rows in total). It also dropped leading words
+    from one university ("Medical University of South Carolina" ->
+    "University of South Carolina", 20 rows); corrected by university
+    rule 3.
   - app.py's own fuzzy matcher (cutoff 0.84) mapped "Geological Sciences"
     to the nearest canonical program, "Biological Sciences" (11 rows);
     corrected by adding the name to canon_programs.txt.
@@ -218,9 +266,12 @@ Edge cases found and how they were handled:
     260-340 total; the value is preserved exactly as displayed, and the
     separate "GRE V" and "GRE AW" badges are stored in their own fields.
   - 8 entries have an empty program_name because the site listed only a
-    university for them; the raw "program" field still holds ", University".
+    university for them; the raw "program" field still holds ", University"
+    and the standardized program is left empty rather than invented.
   - 4 entries received "Unknown", app.py's value when it cannot identify
     a university; left as-is so the gap is visible rather than guessed.
+  - Abbreviated program names not in the expansion table (IDSS, ICME,
+    IWER, ...) are kept exactly as written; the model only re-cased them.
 
 ------------------------------------------------------------
 7. Known bugs / limitations
@@ -233,9 +284,13 @@ Edge cases found and how they were handled:
     and _parse_badge_row need updating.
   - The LLM step ran on an Intel-build Python under Rosetta (CPU only);
     a native Apple-Silicon build with Metal would be several times faster.
-  - huggingface_hub 1.31.0 prints two deprecation warnings for arguments
-    app.py passes to hf_hub_download; they are ignored and the model
-    download completed with this version.
+  - huggingface_hub 1.31.0 accepts the two arguments app.py passes to
+    hf_hub_download (force_filename, local_dir_use_symlinks) with
+    deprecation warnings rather than errors. Verified on this machine: the
+    first run printed "UserWarning: The `force_filename` argument is
+    deprecated and ignored in `hf_hub_download`" and the same for
+    `local_dir_use_symlinks`, then downloaded the 669 MB model and
+    processed the rows. app.py was left as provided.
 
 ------------------------------------------------------------
 8. Sources and assistance
