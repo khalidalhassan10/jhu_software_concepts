@@ -65,20 +65,33 @@ end tell
 
 
 # ------------------------------------------------------------ robots.txt ---
+def _is_challenge_page(html):
+    """True if the HTML is Cloudflare's verification page rather than site content."""
+    lowered = html.lower()
+    return "just a moment" in lowered or "verifying you are human" in lowered or "cf-chl" in lowered
+
+
 def _check_robots():
-    """Read robots.txt (directly, or via Chrome if the site refuses scripts) and
-    confirm this scraper may read /survey/. Stops if permission can't be established."""
+    """Read robots.txt (directly, or via Chrome only if the site answers 403 to scripts)
+    and confirm this scraper may read /survey/. Stops unless a real robots.txt was
+    read and it allows the path."""
     response = http.request("GET", ROBOTS_URL)
     print(f"robots.txt status: {response.status}")
     if response.status == 200:
         text = response.data.decode("utf-8")
-    else:
-        print("robots.txt refused to a script; reading it through the verified Chrome window.")
+    elif response.status == 403:
+        print("robots.txt refused to a script (403); reading it through the verified Chrome window.")
         html = _fetch_with_chrome(ROBOTS_URL)
-        if html is None:
-            print("robots.txt could not be read -- stopping.")
+        if html is None or _is_challenge_page(html):
+            print("robots.txt could not be read (no page or a verification page) -- stopping.")
             return False
         text = BeautifulSoup(html, "html.parser").get_text()
+    else:
+        print(f"robots.txt answered {response.status} (rate limit or error) -- stopping.")
+        return False
+    if "user-agent" not in text.lower():
+        print("The text read is not a robots.txt file -- stopping.")
+        return False
     parser = urllib.robotparser.RobotFileParser()
     parser.parse(text.splitlines())
     allowed = parser.can_fetch(USER_AGENT, START_URL)
@@ -268,6 +281,9 @@ def scrape_data(target=TARGET_ENTRIES):
     url = progress["next_url"]
     pages_done = progress["pages_done"]
     print(f"Starting with {len(entries)} entries, {pages_done} pages done.")
+    if len(entries) >= target or not url:
+        print("Nothing to do: target already reached or no next page recorded.")
+        return entries
 
     # One polite probe request decides how pages are fetched. 403 is the site's
     # bot protection -> read pages from the browser session a human verified.
@@ -291,6 +307,11 @@ def scrape_data(target=TARGET_ENTRIES):
             print("Could not fetch the page -- stopping.")
             break
 
+        if _is_challenge_page(html):
+            print("The site is presenting a verification page -- stopping. "
+                  "Complete the check in Chrome, then run again to resume.")
+            break
+
         page_entries = _parse_page(html)
         if not page_entries:
             empty_pages += 1
@@ -303,8 +324,11 @@ def scrape_data(target=TARGET_ENTRIES):
             continue
         empty_pages = 0
 
-        new_entries = [entry for entry in page_entries if entry["url"] not in seen_urls]
-        seen_urls.update(entry["url"] for entry in new_entries)
+        new_entries = []
+        for entry in page_entries:
+            if entry["url"] not in seen_urls:       # also catches a URL repeated within one page
+                seen_urls.add(entry["url"])
+                new_entries.append(entry)
         entries.extend(new_entries)
         pages_done += 1
         next_url = _find_next_url(html, url)

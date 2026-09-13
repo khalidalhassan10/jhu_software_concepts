@@ -1073,3 +1073,4 @@ MIT Media Lab
 KU Leuven
 University of California, Santa Barbara
 Icahn School of Medicine at Mount Sinai
+Medical University of South Carolina

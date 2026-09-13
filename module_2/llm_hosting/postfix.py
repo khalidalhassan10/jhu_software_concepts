@@ -4,28 +4,37 @@ Why: app.py's post-processor title-cases every name before checking the
 canonical list (breaking acronyms: ETH -> Eth, CUNY -> Cuny), capitalizes small
 words ("At", "And"), and its fuzzy matcher (cutoff 0.84) can map a name to a
 near neighbour ("Geological Sciences" -> "Biological Sciences"). The model itself
-sometimes truncates program names at a comma or changes their meaning.
+often introduces typos ("Religion" -> "Religiion"), truncates program names at a
+comma, or changes their meaning.
 
-Rules applied to every row, in order:
+The site's own program and university fields (scraped from separate cells) are
+the most reliable source, so the rules lean on them:
+
+  Program
+    1. Empty on the site -> empty here (missing data is not invented).
+    2. Site text already on the canonical list -> that canonical spelling.
+    3. Site text is an abbreviation (4 characters or fewer, e.g. "ECE") -> a
+       known expansion if there is one, else a canonical model answer, else the
+       site's text exactly as written (keeps "EECS" rather than "Eecs"), else
+       the model's answer (e.g. "arch" -> "Architecture").
+    4. Model's answer is on the canonical list -> kept (a real standardization).
+    5. Otherwise the model changed a full name without landing on a canonical
+       one (typo, truncation, hallucination) -> the site's text is kept,
+       title-cased with small words lowered and acronyms preserved.
   University
-    1. If the site's own university text already matches the canonical list
-       (case-insensitive), use that canonical spelling.
+    1. Site text already on the canonical list -> that canonical spelling.
     2. Otherwise: known fixes -> small words lowered -> acronyms restored from
        the site's text -> known fixes again -> close match on the canonical list.
-  Program
-    1. If the site's own program text already matches the canonical list, use it.
-    2. If the model's answer shares less than half its characters with the
-       site's text and the site's text is not an abbreviation, keep the site's
-       text (title-cased, small words lowered). This catches truncations
-       ("Black, Race, and Ethnic Studies" -> "Black") and meaning changes
-       ("German" -> "Geometry").
-    3. Otherwise keep the model's answer, small words lowered.
+    3. If the result is the site's text with leading words dropped
+       ("Medical University of South Carolina" -> "University of South
+       Carolina"), the site's text is kept.
 
 Run from module_2 (after run_llm.py --merge):  python llm_hosting/postfix.py
 This pass is deterministic: running it again changes nothing.
 """
 import difflib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -56,6 +65,23 @@ FIXES = {
     "CSU East Bay": "California State University, East Bay",
 }
 SMALL_WORDS = re.compile(r"(?<!^)\b(At|And|In|De|For|The|Du|Des|Der|Of)\b")
+ABBREVIATION_LENGTH = 4
+ABBREVIATIONS = {                 # unambiguous short program names seen on the site
+    "ECE": "Electrical and Computer Engineering",
+    "EECS": "Electrical Engineering and Computer Science",
+    "CS": "Computer Science",
+    "EE": "Electrical Engineering",
+    "ME": "Mechanical Engineering",
+    "HCI": "Human-Computer Interaction",
+    "MATH": "Mathematics",
+    "BIO": "Biology",
+    "LING": "Linguistics",
+    "ARCH": "Architecture",
+    "ECON": "Economics",
+    "STAT": "Statistics",
+    "PHYS": "Physics",
+    "CHEM": "Chemistry",
+}
 
 
 def _load_canon(path):
@@ -70,7 +96,7 @@ def _lower_small_words(name):
 
 
 def _restore_acronyms(name, original):
-    """Put back all-caps tokens (ETH, UCSB, NYU) that appear in the site's own text."""
+    """Put back all-caps tokens (ETH, UCSB, BBS) that appear in the site's own text."""
     acronyms = {t.strip("(),") for t in original.split()
                 if t.strip("(),").isupper() and 2 <= len(t.strip("(),")) <= 6}
     words = []
@@ -82,6 +108,11 @@ def _restore_acronyms(name, original):
     return " ".join(words)
 
 
+def _tidy_site_text(text):
+    """Title-case the site's own text, keep small words lower and acronyms intact."""
+    return _restore_acronyms(_lower_small_words(text.title()), text)
+
+
 def _close_match(name, canon):
     """Exact match on the canonical list, else a close match, else unchanged."""
     if name in canon:
@@ -90,29 +121,49 @@ def _close_match(name, canon):
     return match[0] if match else name
 
 
-def _similarity(a, b):
-    return difflib.SequenceMatcher(None, a.lower(), b.lower()).ratio()
+def fix_program(model_value, site_value, canon_lookup):
+    """Program rules 1-5 (see module docstring)."""
+    site = site_value.strip()
+    if not site:
+        return ""
+    if site.lower() in canon_lookup:
+        return canon_lookup[site.lower()]
+    if len(site) <= ABBREVIATION_LENGTH:
+        if site.upper() in ABBREVIATIONS:
+            return ABBREVIATIONS[site.upper()]
+        if model_value.lower() in canon_lookup:
+            return canon_lookup[model_value.lower()]
+        if model_value.strip().lower() == site.lower():
+            return site
+        return _lower_small_words(model_value)
+    if model_value.lower() in canon_lookup:
+        return canon_lookup[model_value.lower()]
+    if model_value.strip().lower() == site.lower():
+        return _lower_small_words(model_value)
+    return _tidy_site_text(site)
 
 
 def fix_university(model_value, site_value, canon, canon_lookup):
-    """Rules 1-2 for the university field (see module docstring)."""
-    if site_value.strip().lower() in canon_lookup:
-        return canon_lookup[site_value.strip().lower()]
-    value = FIXES.get(model_value, model_value)
-    value = _lower_small_words(value)
-    value = _restore_acronyms(value, site_value)
-    value = FIXES.get(value, value)
-    return _close_match(value, canon)
-
-
-def fix_program(model_value, site_value, canon_lookup):
-    """Rules 1-3 for the program field (see module docstring)."""
+    """University rules 1-3 (see module docstring)."""
     site = site_value.strip()
     if site.lower() in canon_lookup:
         return canon_lookup[site.lower()]
-    if site and len(site) > 4 and _similarity(site, model_value) < 0.5:
-        return _lower_small_words(site.title())
-    return _lower_small_words(model_value)
+    value = FIXES.get(model_value, model_value)
+    value = _lower_small_words(value)
+    value = _restore_acronyms(value, site)
+    value = FIXES.get(value, value)
+    value = _close_match(value, canon)
+    if site and value.lower() != site.lower() and site.lower().endswith(value.lower()):
+        return site                       # the model dropped leading words of the real name
+    return value
+
+
+def _write_json_atomic(path, data):
+    """Write to a temporary file, then rename, so an interruption never leaves a half-written file."""
+    temp = path.with_suffix(path.suffix + ".tmp")
+    with open(temp, "w", encoding="utf-8") as file:
+        json.dump(data, file, indent=2, ensure_ascii=False)
+    os.replace(temp, path)
 
 
 if __name__ == "__main__":
@@ -130,5 +181,5 @@ if __name__ == "__main__":
         row["llm-generated-university"] = new_uni
         row["llm-generated-program"] = new_prog
 
-    json.dump(rows, open(DATA, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    _write_json_atomic(DATA, rows)
     print(f"Changed {changed} of {len(rows)} rows")

@@ -2,7 +2,8 @@
 
 Why this exists: app.py processes rows one at a time at about 3 seconds each, and
 30,000 rows would take longer than a day. Many rows share the exact same "program"
-text, and the model always gives the same answer for the same text, so this script:
+text, and app.py decodes deterministically (temperature 0), so the same text gets
+the same answer. This script therefore:
 
   1. Loads ../applicant_data.json and collects the unique "program" strings
      (12,065 of the 30,000 rows).
@@ -11,6 +12,11 @@ text, and the model always gives the same answer for the same text, so this scri
      chunk at the same time, each limited to THREADS_PER_WORKER CPU threads.
   4. Merges the answers back onto every row and writes
      ../llm_extend_applicant_data.json, the assignment's cleaned output.
+     If any string is still unanswered, the existing output file is left
+     untouched and the partial result goes to a separate file instead.
+
+Cache policy: answers are keyed by the input string. If app.py, the model, or
+the canonical lists change, delete work/ to reprocess every string.
 
 Run:   python run_llm.py            start, or resume after a stop
        python run_llm.py --merge    only rebuild the output from finished results
@@ -72,14 +78,26 @@ def _run_workers(pending):
         processes.append(subprocess.Popen(command, cwd=HERE, env=env))
         print(f"Worker {index}: {len(chunk)} strings -> {out_path.name}")
 
+    failed = 0
     for process in processes:
         process.wait()
         if process.returncode != 0:
+            failed += 1
             print(f"Warning: a worker exited with code {process.returncode}; rerun run_llm.py to finish its strings.")
+    return failed
+
+
+def _write_json_atomic(path, data):
+    """Write to a temporary file, then rename, so an interruption never leaves a half-written file."""
+    temp = path.with_suffix(path.suffix + ".tmp")
+    with open(temp, "w", encoding="utf-8") as file:
+        json.dump(data, file, indent=2, ensure_ascii=False)
+    os.replace(temp, path)
 
 
 def _merge(done):
-    """Attach the standardized fields to every row and write the cleaned output file."""
+    """Attach the standardized fields to every row and write the cleaned output file.
+    Returns True when every row received an answer."""
     with open(INPUT, encoding="utf-8") as file:
         rows = json.load(file)
 
@@ -91,9 +109,15 @@ def _merge(done):
         row["llm-generated-program"] = program
         row["llm-generated-university"] = university
 
-    with open(OUTPUT, "w", encoding="utf-8") as file:
-        json.dump(rows, file, indent=2, ensure_ascii=False)
+    if missing and OUTPUT.exists():
+        partial = OUTPUT.with_name("llm_extend_applicant_data.partial.json")
+        _write_json_atomic(partial, rows)
+        print(f"{missing} rows still without LLM output; kept the existing {OUTPUT.name} "
+              f"and wrote the partial result to {partial.name}")
+        return False
+    _write_json_atomic(OUTPUT, rows)
     print(f"Wrote {len(rows)} rows to {OUTPUT.name}; {missing} rows still without LLM output")
+    return missing == 0
 
 
 if __name__ == "__main__":
@@ -112,4 +136,5 @@ if __name__ == "__main__":
         _run_workers(pending)
         done = _load_done()
 
-    _merge(done)
+    complete = _merge(done)
+    sys.exit(0 if complete else 1)

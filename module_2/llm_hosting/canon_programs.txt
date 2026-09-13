@@ -289,3 +289,19 @@ Women’s and Gender Studies
 Writing Studies
 Geological Sciences
 German
+Computer Science and Engineering
+Environmental Health Sciences
+Biomedical Data Science
+Medical Biophysics
+Africana Studies
+Mental Health Counseling
+Creative Writing Fiction
+Religion
+Sociocultural Anthropology
+Electrical Engineering and Computer Science
+Machine Learning
+Physics and Astronomy
+Aeronautics and Astronautics
+Mass Communication
+Rhetoric
+Educational Studies

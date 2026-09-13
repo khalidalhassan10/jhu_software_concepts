@@ -2,7 +2,7 @@
 
 clean_data() takes the list of entries produced by scrape.py and:
   - trims stray whitespace in every text field,
-  - decodes any HTML entities (&amp; -> &) and removes any leftover tags,
+  - decodes any HTML entities (&amp; -> &) and removes leftover HTML tags,
   - makes every missing value the same thing: an empty string,
   - drops exact duplicate entries (same applicant URL),
   - never alters the raw "program" or "status" text, which are kept for traceability.
@@ -11,11 +11,17 @@ Run:  python clean.py        (reads applicant_data.json, writes it back cleaned)
 """
 import html
 import json
+import os
 import re
 
 DATA_FILE = "applicant_data.json"
 RAW_FIELDS = ("program", "status")           # kept exactly as scraped
-TAG_PATTERN = re.compile(r"</?[A-Za-z][^<>]*>")   # a real HTML tag, not "< 3.5"
+# Only known HTML tag names are removed, so text like "GPA < 3.5" or "GPA<average"
+# is left alone.
+TAG_PATTERN = re.compile(
+    r"</?(?:p|br|b|i|u|a|em|strong|div|span|ul|ol|li|h[1-6]|img|table|tr|td|th)\b[^<>]*>",
+    re.IGNORECASE,
+)
 
 
 def load_data(filename=DATA_FILE):
@@ -69,6 +75,8 @@ if __name__ == "__main__":
     raw_entries = load_data()
     clean_entries = clean_data(raw_entries)
     _report(raw_entries, clean_entries)
-    with open(DATA_FILE, "w", encoding="utf-8") as file:
+    temp = DATA_FILE + ".tmp"                     # write, then rename: never a half-written file
+    with open(temp, "w", encoding="utf-8") as file:
         json.dump(clean_entries, file, indent=2, ensure_ascii=False)
+    os.replace(temp, DATA_FILE)
     print(f"Saved cleaned data to {DATA_FILE}")
