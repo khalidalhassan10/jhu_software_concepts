@@ -1,3 +1,4 @@
 __pycache__/
 .DS_Store
 module_2/llm_hosting/models/
+*.zip
