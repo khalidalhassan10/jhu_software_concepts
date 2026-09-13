@@ -54,18 +54,31 @@ LLM standardization:
 ------------------------------------------------------------
 3. robots.txt compliance
 ------------------------------------------------------------
-Before writing the scraper I opened https://www.thegradcafe.com/robots.txt
-in the browser (screenshot.jpg). It disallows /cgi-bin/ for all agents and
-bans one named crawler entirely; the /survey/ results pages are not
-disallowed. The scraper also checks this programmatically: _check_robots()
+Before scraping I opened https://www.thegradcafe.com/robots.txt in the
+browser (screenshot.jpg). The file has three parts:
+  - A Cloudflare-managed block: "User-agent: *" is allowed everything
+    ("Allow: /") with a Content-Signal line (search=yes, ai-train=no),
+    and a list of named AI crawlers (GPTBot, ClaudeBot, CCBot, Bytespider,
+    Amazonbot, Applebot-Extended, Google-Extended, meta-externalagent,
+    CloudflareBrowserRenderingCrawler) that are disallowed everywhere.
+  - A general block for all other agents disallowing only account pages:
+    /signin, /register, /forgot-password, /reset-password,
+    /confirm-password, /verify-email, /profile.
+  - Full disallows for ia_archiver, dotbot and YandexBot.
+The scraper's user agent ("jhu-605.256-module2-student-scraper") is none
+of the named crawlers, so the "User-agent: *" rules apply, and the
+/survey/ results pages are not disallowed. No account page was ever
+requested. The scraper also checks this programmatically: _check_robots()
 in scrape.py fetches robots.txt with urllib3, parses it with
-urllib.robotparser, and stops if /survey/ is not allowed for the scraper's
-user agent ("jhu-605.256-module2-student-scraper").
+urllib.robotparser, and stops if /survey/ is not allowed for its user agent.
+The data was collected for a course data-analysis exercise, not for
+training an AI model.
 
-Politeness: one request every DELAY_SECONDS (2 s) plus page load time, a
-single direct probe request (never repeated after a 403), retries limited
-to 1, and the scraper stops on any failed fetch or after three consecutive
-empty pages. No CAPTCHA, login, or rate limit was bypassed by automation.
+Politeness: one page every DELAY_SECONDS (2 s) plus page-load time, a
+single direct probe request (never repeated after the 403), retries
+limited to 1, and the scraper stops on any failed fetch or after three
+consecutive empty pages. No CAPTCHA, login, or rate limit was bypassed by
+automation; Cloudflare's verification was completed once by hand in Chrome.
 
 ------------------------------------------------------------
 4. Approach: scraping
