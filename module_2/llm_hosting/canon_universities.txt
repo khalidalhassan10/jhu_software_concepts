@@ -1058,7 +1058,8 @@ Shepherd University
 Fairmont State University
 West Liberty University
 Wheeling University
-Concord UniversityETH Zurich
+Concord University
+ETH Zurich
 CUNY Graduate Center
 City University of New York (CUNY)
 NYU Steinhardt

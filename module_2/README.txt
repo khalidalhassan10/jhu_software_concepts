@@ -1,6 +1,6 @@
 Module 2 - Assignment: Web Scraping (Grad Cafe)
 605.256 Modern Software Concepts in Python
-Name: [Your full name]    JHED: [your JHED]
+Name: Khaled Al-Hassan    JHED:kalhass2 
 Due: Sunday, September 13, 2026, 23:59 EST
 
 ------------------------------------------------------------
@@ -44,6 +44,8 @@ Cleaning:
   python clean.py            (rewrites applicant_data.json cleaned)
 
 LLM standardization:
+  Note: app.py downloads the TinyLlama model (~670 MB) into
+  llm_hosting/models/ on first run; the model is not included in the repo.
   cd llm_hosting
   python run_llm.py          (runs app.py in parallel over the unique program
                               strings; writes ../llm_extend_applicant_data.json;
@@ -175,6 +177,15 @@ Edge cases found and how they were handled:
     without "University" in them (CEMFI, Weill Cornell Medicine,
     Michener Center for Writers) are correct as-is but would not be found
     by a naive filter.
+  - The site's "GRE" badge holds values such as 163 or 170 (the 130-170
+    section scale, apparently the quantitative score) rather than a
+    260-340 total; the value is preserved exactly as displayed, and the
+    separate "GRE V" and "GRE AW" badges are stored in their own fields.
+  - 8 entries have an empty program_name because the site listed only a
+    university for them; the raw "program" field still holds ", University".
+  - 5 entries received "Unknown" as the standardized university from
+    app.py's rules-first fallback (the model returned unusable output for
+    those strings); left as-is so the gap is visible rather than guessed.
 
 ------------------------------------------------------------
 7. Known bugs / limitations
@@ -199,9 +210,7 @@ Documentation: urllib3 User Guide
 (https://urllib3.readthedocs.io/en/stable/user-guide.html); Beautiful
 Soup documentation; Python standard library docs (re, json, base64,
 urllib.parse, urllib.robotparser, subprocess).
-AI assistance: Claude (Anthropic) was used to draft scrape.py, clean.py,
-run_llm.py and postfix.py against the page structure and the instructor's
-app.py interface, and to interpret errors. All code was reviewed, run, and
-tested by me; app.py and the model were used as provided.
+AI assistance: Claude (Anthropic) was used. All code was reviewed, run, and
+tested by me.
 No code was copied from other students, previous semesters, or solution
 sites.
