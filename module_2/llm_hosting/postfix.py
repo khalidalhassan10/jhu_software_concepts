@@ -33,6 +33,8 @@ the most reliable source, so the rules lean on them:
     4. If the result is the site's text with leading words dropped
        ("Medical University of South Carolina" -> "University of South
        Carolina"), the site's text is kept.
+    5. If the model answered "Unknown" although the site named a university,
+       the site's text is used instead (then fixes and canonical matching).
 
 Run from module_2 (after run_llm.py --merge):  python llm_hosting/postfix.py
 This pass is deterministic: running it again changes nothing.
@@ -68,6 +70,8 @@ FIXES = {
     "Princeton": "Princeton University",
     "Csu East Bay": "California State University, East Bay",
     "CSU East Bay": "California State University, East Bay",
+    "CMU": "Carnegie Mellon University",
+    "Cmu": "Carnegie Mellon University",
 }
 SMALL_WORDS = re.compile(r"(?<!^)\b(At|And|In|De|For|The|Du|Des|Der|Of)\b")
 ABBREVIATION_LENGTH = 4
@@ -147,11 +151,13 @@ def fix_program(model_value, site_value, canon_lookup):
 
 
 def fix_university(model_value, site_value, canon, canon_lookup):
-    """University rules 1-4 (see module docstring)."""
+    """University rules 1-5 (see module docstring)."""
     site = site_value.strip()
     if site.lower() in canon_lookup:
         return canon_lookup[site.lower()]
     value = model_value
+    if value == "Unknown" and site:           # the model gave up; the site did not
+        value = site.title() if site.islower() else site
     if site and "," in value:                 # "Philadelphia, Yale" for site text "yale"
         for part in value.split(","):
             if part.strip().lower() == site.lower():

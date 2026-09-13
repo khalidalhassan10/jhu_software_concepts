@@ -170,10 +170,11 @@ its program string, and every row keeps its own other fields.
 llm_hosting/work/ holds app.py's per-string outputs (after app.py's own
 post-processing). Cached answers are keyed by the input string; if app.py,
 the model or the canonical lists change, delete work/ to reprocess every
-string. If any string has no cached answer at merge time (or an answer
-that is empty where the site provided a value), run_llm.py leaves the
-existing output untouched, writes the partial result to a separate file
-(llm_extend_applicant_data.partial.json) and exits with a non-zero status.
+string. A cached answer that is empty where the site provided a value is
+treated as unanswered: it is processed again on the next run, and at merge
+time run_llm.py leaves the existing output untouched, writes the partial
+result to a separate file (llm_extend_applicant_data.partial.json) and
+exits with a non-zero status until every string has a usable answer.
 
 Changes to the LLM-hosting files (app.py itself is unmodified):
   - added run_llm.py (parallel runner + merge, described above);
@@ -214,7 +215,9 @@ the rules lean on them:
     name plus extra comma-separated words ("Philadelphia, Yale" for
     "yale"), only the site's part is kept; (4) if the result is the site's
     name with its leading words dropped ("Medical University of South
-    Carolina" -> "University of South Carolina"), the site's text is kept.
+    Carolina" -> "University of South Carolina"), the site's text is kept;
+    (5) if the model answered "Unknown" although the site named a
+    university, the site's text is used instead.
   - Reproduction: from the included files, run_llm.py --merge followed by
     one postfix.py run regenerates llm_extend_applicant_data.json exactly.
 
@@ -238,10 +241,12 @@ Edge cases found and how they were handled:
     it changed some meanings ("Comparative Literature" -> "Compare And
     Contrast Literature", 125 rows; "German" -> "Geometry", 11 rows) and
     occasionally answered in another language. Corrected by program rules
-    2 and 5. 26 rows remain where the model shortened a comma-qualified
-    name to a canonical program ("Applied Mathematics, Applied and
-    Computational" -> "Applied Mathematics", "Chemistry, M.Sc." ->
-    "Chemistry"); those shortenings were accepted as standardizations.
+    2 and 5. 26 rows (20 distinct program strings) remain where the
+    standardized program equals the text before the first comma of the
+    site's program name because the model shortened a comma-qualified name
+    to a canonical program ("Applied Mathematics, Applied and Computational"
+    -> "Applied Mathematics", "Chemistry, M.Sc." -> "Chemistry"); those
+    shortenings were accepted as standardizations.
   - The model frequently introduced typos into names it was only asked to
     standardize: "Religion" -> "Religiion" (65 rows), "Sociocultural
     Anthropology" -> "Sociocultuural Anthropology" (51), "Electrical
@@ -272,7 +277,9 @@ Edge cases found and how they were handled:
     university for them; the raw "program" field still holds ", University"
     and the standardized program is left empty rather than invented.
   - 4 entries received "Unknown", app.py's value when it cannot identify
-    a university; left as-is so the gap is visible rather than guessed.
+    a university, although the site named one (Rutgers University, MIT,
+    CMU); postfix.py substitutes the site's own text (university rule 5),
+    so no "Unknown" remains.
   - Abbreviated program names not in the expansion table (IDSS, ICME,
     IWER, ...) are kept exactly as written; the model only re-cased them.
 

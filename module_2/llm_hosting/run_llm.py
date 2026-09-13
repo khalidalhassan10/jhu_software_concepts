@@ -7,7 +7,9 @@ the same answer. This script therefore:
 
   1. Loads ../applicant_data.json and collects the unique "program" strings
      (12,065 of the 30,000 rows).
-  2. Skips any strings already answered in an earlier run (resume support).
+  2. Skips any strings already answered usably in an earlier run (resume
+     support); a cached answer that is empty where the site provided a value
+     is treated as unanswered and processed again.
   3. Splits the rest into WORKERS chunk files and runs one copy of app.py per
      chunk at the same time, each limited to THREADS_PER_WORKER CPU threads.
   4. Merges the answers back onto every row and writes
@@ -59,6 +61,18 @@ def _load_done():
     return done
 
 
+def _is_usable(answer, program_name, university):
+    """A cached answer is usable unless a field the site provided came back empty.
+    An empty field is fine only where the site itself had nothing (e.g. rows with
+    no program name)."""
+    program, uni = answer
+    if program_name.strip() and not program:
+        return False
+    if university.strip() and not uni:
+        return False
+    return True
+
+
 def _run_workers(pending):
     """Split the pending strings into chunks and run app.py on each chunk in parallel."""
     WORK.mkdir(exist_ok=True)
@@ -105,12 +119,8 @@ def _merge(done):
     missing = 0
     for row in rows:
         program, university = done.get(row["program"], ("", ""))
-        # An answer is unusable if a field the site provided came back empty;
-        # an empty field is fine only where the site itself had nothing
-        # (e.g. the rows with no program name).
-        program_bad = bool(row.get("program_name", "").strip()) and not program
-        university_bad = bool(row.get("university", "").strip()) and not university
-        if row["program"] not in done or program_bad or university_bad:
+        if row["program"] not in done or not _is_usable(
+                (program, university), row.get("program_name", ""), row.get("university", "")):
             missing += 1
         row["llm-generated-program"] = program
         row["llm-generated-university"] = university
@@ -132,10 +142,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with open(INPUT, encoding="utf-8") as file:
-        unique = sorted({row["program"] for row in json.load(file)})
+        rows = json.load(file)
+    # The site's own fields for each program string, used to judge cached answers.
+    source = {}
+    for row in rows:
+        source.setdefault(row["program"], (row.get("program_name", ""), row.get("university", "")))
+    unique = sorted(source)
 
     done = _load_done()
-    pending = [text for text in unique if text not in done]
+    pending = [text for text in unique
+               if text not in done or not _is_usable(done[text], *source[text])]
     print(f"{len(unique)} unique strings, {len(done)} already done, {len(pending)} to go")
 
     if pending and not args.merge:
