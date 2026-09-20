@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grad Café | Application Analysis</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">JHU · Module 3</p>
+        <h1>Grad Café analysis</h1>
+        <p>Results from self-reported applications in our PostgreSQL database.</p>
+      </div>
+
+      <form action="{{ url_for('refresh') }}" method="post">
+        <button class="secondary" type="submit">Update Analysis</button>
+      </form>
+    </header>
+
+    {% for message in get_flashed_messages() %}
+      <div class="notice">{{ message }}</div>
+    {% endfor %}
+
+    {% if pulling %}
+      <div class="notice">
+        New Grad Café data is currently being retrieved.
+        You can update the analysis while it runs.
+      </div>
+    {% endif %}
+
+    {% if notice and not pulling %}
+      <div class="notice">{{ notice }}</div>
+    {% endif %}
+
+    <section class="pull-panel">
+      <div>
+        <h2>Check for new entries</h2>
+        <p>
+          Pull Data checks the newest Grad Café pages and adds new application
+          entries to the database. Depending on the number of new entries,
+          this may take some time.
+        </p>
+      </div>
+
+      <form action="{{ url_for('pull') }}" method="post">
+        <button type="submit" {% if pulling %}disabled{% endif %}>
+          {{ 'Pull in progress' if pulling else 'Pull Data' }}
+        </button>
+      </form>
+    </section>
+
+    {% if r %}
+      <p class="caption">
+        Numbers reflect entries in the database when this page loaded.
+        They describe submissions, not admission rates for all applicants.
+      </p>
+
+      <div class="cards">
+        <article>
+          <span class="number">01</span>
+          <h3>Fall 2026 entries</h3>
+          <p class="value">{{ r.q1 }}</p>
+          <p>Entries with Fall 2026 as the intended term.</p>
+        </article>
+
+        <article>
+          <span class="number">02</span>
+          <h3>International entries</h3>
+          <p class="value">
+            {{ '%.2f%%'|format(r.q2) if r.q2 is not none else 'No data' }}
+          </p>
+          <p>Among entries reporting a nationality classification.</p>
+        </article>
+
+        <article>
+          <span class="number">03</span>
+          <h3>Reported averages</h3>
+          <dl>
+            <dt>GPA</dt>
+            <dd>{{ '%.2f'|format(r.q3[0]) if r.q3[0] is not none else 'No data' }}</dd>
+
+            <dt>GRE Quantitative</dt>
+            <dd>{{ '%.2f'|format(r.q3[1]) if r.q3[1] is not none else 'No data' }}</dd>
+
+            <dt>GRE Verbal</dt>
+            <dd>{{ '%.2f'|format(r.q3[2]) if r.q3[2] is not none else 'No data' }}</dd>
+
+            <dt>GRE Analytical Writing</dt>
+            <dd>{{ '%.2f'|format(r.q3[3]) if r.q3[3] is not none else 'No data' }}</dd>
+          </dl>
+          <p>Each average uses entries that report that particular metric.</p>
+        </article>
+
+        <article>
+          <span class="number">04</span>
+          <h3>American applicants, Fall 2026</h3>
+          <p class="value">
+            {{ '%.2f'|format(r.q4) if r.q4 is not none else 'No data' }}
+          </p>
+          <p>Average reported GPA.</p>
+        </article>
+
+        <article>
+          <span class="number">05</span>
+          <h3>Fall 2025 acceptances</h3>
+          <p class="value">
+            {{ '%.2f%%'|format(r.q5) if r.q5 is not none else 'No data' }}
+          </p>
+          <p>Accepted entries divided by all Fall 2025 entries.</p>
+        </article>
+
+        <article>
+          <span class="number">06</span>
+          <h3>Accepted Fall 2026 entries</h3>
+          <p class="value">
+            {{ '%.2f'|format(r.q6) if r.q6 is not none else 'No data' }}
+          </p>
+          <p>Average reported GPA.</p>
+        </article>
+
+        <article>
+          <span class="number">07</span>
+          <h3>JHU · CS master's</h3>
+          <p class="value">{{ r.q7 }}</p>
+          <p>Count using the original program and degree.</p>
+        </article>
+
+        <article>
+          <span class="number">08</span>
+          <h3>Accepted PhD · CS · four universities</h3>
+          <p class="value">{{ r.q8 }}</p>
+          <p>Fall 2026, original fields: Georgetown, MIT, Stanford, Carnegie Mellon.</p>
+        </article>
+
+        <article>
+          <span class="number">09</span>
+          <h3>LLM field comparison</h3>
+          <dl>
+            <dt>Original fields</dt>
+            <dd>{{ r.q8 }}</dd>
+
+            <dt>LLM fields</dt>
+            <dd>{{ r.q9 }}</dd>
+
+            <dt>Difference</dt>
+            <dd>{{ '%+d'|format(r.q9 - r.q8) }}</dd>
+          </dl>
+          <p>Same filters as Q8, using the LLM-generated university and program.</p>
+        </article>
+      </div>
+
+      <h2>Questions we investigated</h2>
+
+      <div class="cards two">
+        <article>
+          <span class="number">10</span>
+          <h3>
+            Among Fall 2026 Computer Science entries, what percentages
+            are master's and PhD?
+          </h3>
+          <p>
+            All {{ r.q10_total }} Computer Science entries are in the
+            denominator, including other degrees.
+          </p>
+          <dl>
+            {% for degree, count, percentage in r.q10 %}
+              <dt>{{ degree }} ({{ count }})</dt>
+              <dd>{{ '%.2f%%'|format(percentage) }}</dd>
+            {% endfor %}
+          </dl>
+        </article>
+
+        <article>
+          <span class="number">11</span>
+          <h3>
+            How do reported GPAs compare for accepted and rejected
+            Fall 2026 CS master's entries?
+          </h3>
+          <dl>
+            <dt>Accepted ({{ r.q11[0] }} reported)</dt>
+            <dd>
+              {{ '%.2f'|format(r.q11[1]) if r.q11[1] is not none else 'No data' }}
+            </dd>
+
+            <dt>Rejected ({{ r.q11[2] }} reported)</dt>
+            <dd>
+              {{ '%.2f'|format(r.q11[3]) if r.q11[3] is not none else 'No data' }}
+            </dd>
+
+            <dt>Average difference</dt>
+            <dd>
+              {{ '%+.2f'|format(r.q11[1] - r.q11[3])
+                 if r.q11[1] is not none and r.q11[3] is not none
+                 else 'Unavailable' }}
+            </dd>
+          </dl>
+        </article>
+      </div>
+    {% endif %}
+  </main>
+</body>
+</html>
