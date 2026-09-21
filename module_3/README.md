@@ -30,9 +30,15 @@ The initial database load came from `llm_extend_applicant_data.json`, which cont
 
 ## Requirements and setup
 
-I ran the project on macOS with Python 3.12, PostgreSQL 18, psycopg 3, SQLAlchemy 2, Flask, Beautiful Soup, and urllib3. The database is named `gradcafe`, and the connection defaults to the `postgres` user on `localhost:5432`. These defaults can be changed with the `PGDATABASE`, `PGUSER`, `PGHOST`, and `PGPORT` environment variables.
+I ran the project on macOS with Python 3.12, PostgreSQL 18, psycopg 3, SQLAlchemy 2, Flask, Beautiful Soup, and urllib3. The database is named `gradcafe`, and the connection defaults to the `postgres` user on `localhost:5432`. SQLAlchemy and Pull Data support connection overrides through the `PGDATABASE`, `PGUSER`, `PGHOST`, and `PGPORT` environment variables. The `load_data.py` and `query_data.py` scripts use the connection settings written in those files. All components must connect to the same database.
 
-From the `module_3` folder:
+From the `module_3` folder, create the Conda environment if it does not already exist:
+
+```bash
+conda create -n py312 python=3.12
+```
+
+Then activate the environment and install the dependencies:
 
 ```bash
 conda activate py312
