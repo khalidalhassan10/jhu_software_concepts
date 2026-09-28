@@ -193,5 +193,5 @@ def create_app(scraper=None, loader=None, query=None, database_url=None, run_in_
     return app
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     create_app().run(debug=True, use_reloader=False)

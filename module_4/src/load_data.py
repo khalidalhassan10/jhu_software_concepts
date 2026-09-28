@@ -199,5 +199,5 @@ def main(argv=None):
     print(f"Applicants stored in PostgreSQL: {count_rows()}")
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     main()

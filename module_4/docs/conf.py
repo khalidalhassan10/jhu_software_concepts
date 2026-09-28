@@ -6,6 +6,7 @@ sys.path.insert(0, os.path.abspath(".."))
 
 project = "Grad Café Analytics"
 author = "Khaled Al-Hassan"
+copyright = "2026, Khaled Al-Hassan"
 release = "4.0"
 
 extensions = [

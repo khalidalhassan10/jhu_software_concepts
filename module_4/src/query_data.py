@@ -189,5 +189,5 @@ def main(database_url=None):
             print(f"Average GPA difference: {fmt(difference, spec='+.2f')}")
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     main()

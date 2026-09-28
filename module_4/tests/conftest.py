@@ -7,6 +7,7 @@ import os
 
 import psycopg
 import pytest
+from psycopg.conninfo import conninfo_to_dict
 
 from src.flask_app import create_app
 from src.load_data import ensure_table
@@ -115,7 +116,7 @@ def db_rows():
 def database_url():
     """The test database URL (must end in _test); the table is created if missing."""
     url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL", "")
-    if not url.rstrip("/").endswith("_test"):
+    if not conninfo_to_dict(url).get("dbname", "").endswith("_test"):
         pytest.fail(
             "Database tests need a database whose name ends in _test. Run:\n"
             '  export TEST_DATABASE_URL="postgresql://postgres:PASSWORD@localhost:5432/gradcafe_test"'

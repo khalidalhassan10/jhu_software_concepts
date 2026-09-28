@@ -9,6 +9,7 @@ import psycopg
 import pytest
 
 from src import load_data
+from src.flask_app import create_app
 from src.models import create_session_factory
 from src.orm_queries import run_analyses
 
@@ -163,3 +164,16 @@ def test_load_file_and_main(clean_db, tmp_path, capsys, monkeypatch, db_rows):
     assert "Read 3 records" in printed
     assert "Inserted 0 new applicants." in printed
     assert "Applicants stored in PostgreSQL: 3" in printed
+
+@pytest.mark.db
+@pytest.mark.buttons
+def test_failed_pull_answers_500_with_no_partial_writes(clean_db, make_row):
+    app = create_app(scraper=lambda: [make_row(40), make_row(99999999999)],
+                     database_url=clean_db, run_in_background=False)
+
+    response = app.test_client().post("/pull-data")
+
+    assert response.status_code == 500
+    assert response.get_json()["ok"] is False
+    assert count_rows(clean_db) == 0
+    assert app.config["PULL_STATE"].busy is False

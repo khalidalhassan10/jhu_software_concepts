@@ -111,10 +111,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#module-src.models">models.py</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#src.models.Base"><code class="docutils literal notranslate"><span class="pre">Base</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#src.models.Base._sa_registry"><code class="docutils literal notranslate"><span class="pre">Base._sa_registry</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l3"><a class="reference internal" href="#src.models.Base"><code class="docutils literal notranslate"><span class="pre">Base</span></code></a></li>
 <li class="toctree-l3"><a class="reference internal" href="#src.models.Applicant"><code class="docutils literal notranslate"><span class="pre">Applicant</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#src.models.Applicant.p_id"><code class="docutils literal notranslate"><span class="pre">Applicant.p_id</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#src.models.Applicant.program"><code class="docutils literal notranslate"><span class="pre">Applicant.program</span></code></a></li>
@@ -131,7 +128,6 @@
 <li class="toctree-l4"><a class="reference internal" href="#src.models.Applicant.degree"><code class="docutils literal notranslate"><span class="pre">Applicant.degree</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#src.models.Applicant.llm_generated_program"><code class="docutils literal notranslate"><span class="pre">Applicant.llm_generated_program</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#src.models.Applicant.llm_generated_university"><code class="docutils literal notranslate"><span class="pre">Applicant.llm_generated_university</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#src.models.Applicant._sa_class_manager"><code class="docutils literal notranslate"><span class="pre">Applicant._sa_class_manager</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#src.models.sqlalchemy_url"><code class="docutils literal notranslate"><span class="pre">sqlalchemy_url()</span></code></a></li>
@@ -721,12 +717,7 @@ function is called, or when you run <code class="docutils literal notranslate"><
 <dl class="py class">
 <dt class="sig sig-object py" id="src.models.Base">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">src.models.</span></span><span class="sig-name descname"><span class="pre">Base</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/models.html#Base"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#src.models.Base" title="Link to this definition"></a></dt>
-<dd><dl class="py attribute">
-<dt class="sig sig-object py" id="src.models.Base._sa_registry">
-<span class="sig-name descname"><span class="pre">_sa_registry</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ClassVar</span><span class="p"><span class="pre">[</span></span><span class="pre">registry</span><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;sqlalchemy.orm.decl_api.registry</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#src.models.Base._sa_registry" title="Link to this definition"></a></dt>
 <dd></dd></dl>
-
-</dd></dl>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="src.models.Applicant">
@@ -805,11 +796,6 @@ function is called, or when you run <code class="docutils literal notranslate"><
 <dl class="py attribute">
 <dt class="sig sig-object py" id="src.models.Applicant.llm_generated_university">
 <span class="sig-name descname"><span class="pre">llm_generated_university</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Mapped</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#src.models.Applicant.llm_generated_university" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="src.models.Applicant._sa_class_manager">
-<span class="sig-name descname"><span class="pre">_sa_class_manager</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'comments':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'date_added':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'degree':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'gpa':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'gre':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'gre_aw':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'gre_v':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'llm_generated_program':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'llm_generated_university':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'p_id':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'program':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'status':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'term':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'url':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;,</span> <span class="pre">'us_or_international':</span> <span class="pre">&lt;sqlalchemy.orm.attributes.InstrumentedAttribute</span> <span class="pre">object&gt;}</span></span><a class="headerlink" href="#src.models.Applicant._sa_class_manager" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 </dd></dl>
@@ -903,7 +889,7 @@ function is called, or when you run <code class="docutils literal notranslate"><
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright .</p>
+    <p>&#169; Copyright 2026, Khaled Al-Hassan.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

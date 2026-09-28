@@ -99,7 +99,7 @@ From the repository root, with `TEST_DATABASE_URL` set:
 pytest module_4/tests -m "web or buttons or analysis or db or integration"
 ```
 
-This runs all 85 tests and fails unless coverage of `module_4/src` is 100% (set in `pytest.ini`).
+This runs all 91 tests and fails unless coverage of `module_4/src` is 100% (set in `pytest.ini`).
 Every test carries one or more of the five markers, so this command selects the whole suite.
 
 | Marker | Tests |
@@ -140,7 +140,8 @@ Changes from Module 3
 * `load_data.py` and `query_data.py` are import-safe functions; malformed records are skipped,
   and a failed batch is rolled back with no partial writes.
 * Empty or brand-new databases show `n/a` instead of crashing.
-* The routes are `GET /analysis`, `POST /pull-data` and `POST /update-analysis`, answering JSON.
+* The routes are `GET /analysis` (the HTML page), and `POST /pull-data` and `POST /update-analysis`,
+  which answer JSON.
 * The page labels every answer `Answer:`, has `data-testid` selectors, and shows a message for
   every state.
 * `scrape.py` and `clean.py` keep only what Pull Data uses; the Module 2 bulk scraper and the

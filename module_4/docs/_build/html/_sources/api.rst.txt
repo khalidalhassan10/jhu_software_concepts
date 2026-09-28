@@ -57,7 +57,7 @@ models.py
 ---------
 
 .. automodule:: src.models
-   :exclude-members: metadata, registry
+   :exclude-members: metadata, registry, _sa_registry, _sa_class_manager
 
 orm_queries.py
 --------------

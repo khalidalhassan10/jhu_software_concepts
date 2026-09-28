@@ -128,7 +128,7 @@ def main(database_url=None):
     return inserted
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     try:
         main()
     except Exception as exc:
