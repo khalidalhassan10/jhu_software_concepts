@@ -122,7 +122,7 @@ button.secondary {
 }
 
 article {
-    min-height: 150px;             /* M4 CHANGE: one answer per card now */
+    min-height: 150px;
     padding: 24px;
     background: white;
     border: 1px solid #e2e8ea;
@@ -137,7 +137,7 @@ article p:last-child {
 .value {
     margin: 0;
     color: #155d72;
-    font-size: 1.6rem;             /* M4 CHANGE: smaller, so "Answer: 569 of 1,679 (33.89%)" fits */
+    font-size: 1.6rem;
     font-weight: 750;
     letter-spacing: -0.045em;
 }

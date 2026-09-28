@@ -1,22 +1,14 @@
 <!doctype html>
-{# ============================================================
-   analysis.html - the Analysis page (M4 version)
-   From flask_app.py: results = list of (question, "Answer: ...") pairs,
-   busy = a pull is running, last_result = how the last pull ended, error = database error.
-   data-testid="..." = stable names the tests use to find elements.
-   ============================================================ #}
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  {# while a pull runs, reload the page every 5 seconds so the busy notice goes away by itself #}
   {% if busy %}<meta http-equiv="refresh" content="5">{% endif %}
   <title>Grad Café | Analysis</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <main>
-    {# ---- title bar: Update Analysis at the top right ---- #}
     <header>
       <div>
         <p class="eyebrow">JHU · Module 4</p>
@@ -27,7 +19,6 @@
               onclick="post('{{ url_for('update_analysis') }}', this)">Update Analysis</button>
     </header>
 
-    {# ---- status messages: every state has one ---- #}
     {% if error %}
       <div class="notice" data-testid="error-notice">{{ error }}</div>
     {% endif %}
@@ -44,7 +35,6 @@
       <div class="notice" data-testid="pull-notice">Last pull failed: {{ last_result.error }}</div>
     {% endif %}
 
-    {# ---- Pull Data, with the explanation the assignment asks for ---- #}
     <section class="pull-panel">
       <div>
         <h2>Check for new entries</h2>
@@ -57,7 +47,6 @@
               onclick="post('{{ url_for('pull_data_route') }}', this)">Pull Data</button>
     </section>
 
-    {# ---- the answers: one card per answer, each value starts with "Answer:" ---- #}
     {% if results %}
       <p class="caption">
         Numbers describe submissions in the database, not admission rates for all applicants.
@@ -73,7 +62,6 @@
     {% endif %}
   </main>
 
-  {# ---- the two buttons call the JSON routes, then reload the page ---- #}
   <script>
     async function post(path, button) {
       button.disabled = true;

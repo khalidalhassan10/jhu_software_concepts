@@ -3,15 +3,12 @@
 Import-safe: nothing runs on import. Run ``python -m src.query_data``.
 """
 
-# ---- Block 1: imports ----
+
 import psycopg
 
-from src.db_config import get_database_url     # M4 CHANGE: DATABASE_URL instead of hard-coded settings + password prompt
+from src.db_config import get_database_url
 
 
-# ---- Block 2: M4 CHANGE - one formatting helper that never crashes on an empty database ----
-# Grader deduction: on an empty table AVG(...) returns NULL (None in Python), and
-# f"{None:.2f}" crashes. fmt() prints "n/a" instead.
 def fmt(value, spec=".2f", suffix=""):
     """Format a number for printing; ``None`` (no data) becomes ``"n/a"``.
 
@@ -25,8 +22,6 @@ def fmt(value, spec=".2f", suffix=""):
     return f"{value:{spec}}{suffix}"
 
 
-# ---- Block 3: M4 CHANGE - the whole Module 3 script, now inside a function ----
-# The SQL is exactly your Module 3 SQL. Only the connection line and the number formatting changed.
 def main(database_url=None):
     """Run the eleven analysis questions in SQL and print each answer.
 
@@ -34,14 +29,14 @@ def main(database_url=None):
     """
     with psycopg.connect(get_database_url(database_url)) as connection:
         with connection.cursor() as cur:
-            # Q1
+
             cur.execute("""
                 SELECT COUNT(term) FROM applicants
                 WHERE term ILIKE 'Fall 2026'
             """)
             print(f"Fall 2026 applicant count: {cur.fetchone()[0]}")
 
-            # Q2
+
             cur.execute("""
                 SELECT
                     100.0 * COUNT(*) FILTER (
@@ -54,23 +49,23 @@ def main(database_url=None):
             """)
             print(f"Percent international: {fmt(cur.fetchone()[0], suffix='%')}")
 
-            # Q3 - GPA
+
             cur.execute("SELECT avg(gpa) FROM applicants")
             print(f"Average GPA: {fmt(cur.fetchone()[0])}")
 
-            # Q3 - GRE Quantitative
+
             cur.execute("SELECT avg(gre) FROM applicants")
             print(f"Average GRE Quantitative: {fmt(cur.fetchone()[0])}")
 
-            # Q3 - GRE Verbal
+
             cur.execute("SELECT avg(gre_v) FROM applicants")
             print(f"Average GRE Verbal: {fmt(cur.fetchone()[0])}")
 
-            # Q3 - GRE Analytical Writing
+
             cur.execute("SELECT avg(gre_aw) FROM applicants")
             print(f"Average GRE Analytical Writing: {fmt(cur.fetchone()[0])}")
 
-            # Q4
+
             cur.execute("""
                 SELECT avg(gpa) FROM applicants
                 WHERE us_or_international ILIKE 'American'
@@ -78,7 +73,7 @@ def main(database_url=None):
             """)
             print(f"Average GPA of Americans for Fall 2026: {fmt(cur.fetchone()[0])}")
 
-            # Q5
+
             cur.execute("""
                 SELECT
                     100.0 * COUNT(*) FILTER (
@@ -90,7 +85,7 @@ def main(database_url=None):
             """)
             print(f"Fall 2025 acceptance percentage: {fmt(cur.fetchone()[0], suffix='%')}")
 
-            # Q6
+
             cur.execute("""
                 SELECT avg(gpa) FROM applicants
                 WHERE term ILIKE 'FALL 2026'
@@ -98,7 +93,7 @@ def main(database_url=None):
             """)
             print(f"Average GPA of accepted applicants in Fall 2026: {fmt(cur.fetchone()[0])}")
 
-            # Q7
+
             cur.execute("""
                 SELECT COUNT(*)
                 FROM applicants
@@ -112,7 +107,7 @@ def main(database_url=None):
                 f"in Computer Science: {cur.fetchone()[0]}"
             )
 
-            # Q8
+
             cur.execute("""
                 SELECT COUNT(*)
                 FROM applicants
@@ -132,7 +127,7 @@ def main(database_url=None):
                 f"Georgetown, MIT, Stanford and CMU is: {q8_count}"
             )
 
-            # Q9
+
             cur.execute("""
                 SELECT COUNT(*)
                 FROM applicants
@@ -152,9 +147,7 @@ def main(database_url=None):
             cur.execute("SELECT %s::integer - %s::integer", (q9_count, q8_count))
             print(f"Difference: {cur.fetchone()[0]:+d}")
 
-            # Q10 (original question)
-            # For Fall 2026 Computer Science applicants, what's the percentage of
-            # masters applicants and PhD applicants?
+
             cur.execute("""
                 SELECT
                 COUNT(*) FILTER (WHERE degree ILIKE 'Masters') AS masters_count,
@@ -173,9 +166,7 @@ def main(database_url=None):
             print(f"Masters: {masters_count} ({fmt(masters_pct, suffix='%')})")
             print(f"PhD: {phd_count} ({fmt(phd_pct, suffix='%')})")
 
-            # Q11 (original question)
-            # Among Computer Science master's entries, how does the average reported GPA
-            # compare between accepted and rejected entries?
+
             cur.execute("""
                 WITH averages AS (
                 SELECT
@@ -198,5 +189,5 @@ def main(database_url=None):
             print(f"Average GPA difference: {fmt(difference, spec='+.2f')}")
 
 
-if __name__ == "__main__":  # pragma: no cover  (tests call main() directly)
+if __name__ == "__main__":  # pragma: no cover
     main()

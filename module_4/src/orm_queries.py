@@ -1,7 +1,7 @@
 """Answer the analysis questions using the Applicant SQLAlchemy model."""
 from sqlalchemy import func, or_, select
 
-from src.models import Applicant, create_session_factory   # M4 CHANGE: "src." prefix
+from src.models import Applicant, create_session_factory
 
 A = Applicant
 
@@ -30,14 +30,14 @@ def run_analyses(session):
     """Calculate Q1 through Q11 from the existing applicants table."""
     result = {}
 
-    # Q1
+
     result["q1"] = session.scalar(
         select(func.count())
         .select_from(A)
         .where(A.term.ilike("Fall 2026"))
     )
 
-    # Q2
+
     result["q2"] = session.scalar(
         select(
             100.0
@@ -51,7 +51,7 @@ def run_analyses(session):
         )
     )
 
-    # Q3: Each average ignores NULL values in its own column.
+
     result["q3"] = session.execute(
         select(
             func.avg(A.gpa),
@@ -61,7 +61,7 @@ def run_analyses(session):
         )
     ).one()
 
-    # Q4
+
     result["q4"] = session.scalar(
         select(func.avg(A.gpa)).where(
             A.term.ilike("Fall 2026"),
@@ -69,7 +69,7 @@ def run_analyses(session):
         )
     )
 
-    # Q5
+
     result["q5"] = session.scalar(
         select(
             100.0
@@ -78,7 +78,7 @@ def run_analyses(session):
         ).where(A.term.ilike("Fall 2025"))
     )
 
-    # Q6
+
     result["q6"] = session.scalar(
         select(func.avg(A.gpa)).where(
             A.term.ilike("Fall 2026"),
@@ -86,7 +86,7 @@ def run_analyses(session):
         )
     )
 
-    # Q7
+
     result["q7"] = session.scalar(
         select(func.count())
         .select_from(A)
@@ -100,14 +100,14 @@ def run_analyses(session):
         )
     )
 
-    # Conditions shared by Q8 and Q9.
+
     common = (
         A.degree.ilike("PhD"),
         A.term.ilike("Fall 2026"),
         A.status.ilike("Accepted%"),
     )
 
-    # Q8: Original downloaded program field.
+
     result["q8"] = session.scalar(
         select(func.count())
         .select_from(A)
@@ -118,7 +118,7 @@ def run_analyses(session):
         )
     )
 
-    # Q9: LLM-generated university and program fields.
+
     result["q9"] = session.scalar(
         select(func.count())
         .select_from(A)
@@ -129,7 +129,7 @@ def run_analyses(session):
         )
     )
 
-    # Q10: Include all Fall 2026 CS entries in the denominator.
+
     masters_count, phd_count, total = session.execute(
         select(
             func.count().filter(A.degree.ilike("Masters")),
@@ -150,7 +150,7 @@ def run_analyses(session):
             ("PhD", phd_count, 100.0 * phd_count / total),
         ]
 
-    # Q11: Only reported GPAs contribute to each average.
+
     result["q11"] = session.execute(
         select(
             func.count(A.gpa).filter(A.status.ilike("Accepted%")),
@@ -172,12 +172,12 @@ def display(result):
     def average(number):
         return f"{number:.2f}" if number is not None else "no reported values"
 
-    # M4 CHANGE: a missing percentage used to print "no reported values%"
+
     def percent(number):
         return f"{number:.2f}%" if number is not None else "no reported values"
 
     print(f"Fall 2026 applicant count: {result['q1']}")
-    print(f"Percent international: {percent(result['q2'])}")   # M4 CHANGE
+    print(f"Percent international: {percent(result['q2'])}")
 
     labels = (
         "Average GPA",
@@ -189,7 +189,7 @@ def display(result):
         print(f"{label}: {average(number)}")
 
     print(f"Average GPA of Americans for Fall 2026: {average(result['q4'])}")
-    print(f"Fall 2025 acceptance percentage: {percent(result['q5'])}")   # M4 CHANGE
+    print(f"Fall 2025 acceptance percentage: {percent(result['q5'])}")
     print(f"Average GPA of accepted applicants in Fall 2026: {average(result['q6'])}")
     print(f"Johns Hopkins Computer Science master's entries: {result['q7']}")
     print(
@@ -223,7 +223,7 @@ def display(result):
 
 
 if __name__ == "__main__":
-    Session = create_session_factory()   # M4 CHANGE: reads DATABASE_URL (no password prompt)
+    Session = create_session_factory()
 
     with Session() as session:
         display(run_analyses(session))

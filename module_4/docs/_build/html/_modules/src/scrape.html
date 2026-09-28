@@ -82,9 +82,7 @@
 <span class="sd">  3. Parse each page into dictionaries (BeautifulSoup + regex + string methods).</span>
 <span class="sd">  4. Find the "next page" link by decoding each link's cursor.</span>
 
-<span class="sd">M4 CHANGE: the Module 2 bulk scraper (scrape_data, save/load, the progress file and the</span>
-<span class="sd">script entry point) was removed. Pull Data (pull_data.py) drives the loop now, and</span>
-<span class="sd">every line kept here must be covered by the tests.</span>
+<span class="sd">Pull Data (pull_data.py) walks the pages; this module fetches and reads them.</span>
 <span class="sd">"""</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">base64</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
@@ -96,27 +94,26 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">urllib3</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">bs4</span><span class="w"> </span><span class="kn">import</span> <span class="n">BeautifulSoup</span>
 
-<span class="c1"># ---------------------------------------------------------------- settings ---</span>
+
 <span class="n">BASE_URL</span> <span class="o">=</span> <span class="s2">"https://www.thegradcafe.com"</span>
 <span class="n">START_URL</span> <span class="o">=</span> <span class="n">BASE_URL</span> <span class="o">+</span> <span class="s2">"/survey/"</span>
 <span class="n">ROBOTS_URL</span> <span class="o">=</span> <span class="n">BASE_URL</span> <span class="o">+</span> <span class="s2">"/robots.txt"</span>
 <span class="n">USER_AGENT</span> <span class="o">=</span> <span class="s2">"jhu-605.256-module2-student-scraper"</span>
-<span class="n">DELAY_SECONDS</span> <span class="o">=</span> <span class="mi">2</span>          <span class="c1"># politeness pause between pages</span>
+<span class="n">DELAY_SECONDS</span> <span class="o">=</span> <span class="mi">2</span>
 
-<span class="c1"># One PoolManager for every urllib3 request (urllib3 user guide recommends this).</span>
+
 <span class="n">http</span> <span class="o">=</span> <span class="n">urllib3</span><span class="o">.</span><span class="n">PoolManager</span><span class="p">(</span>
     <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"User-Agent"</span><span class="p">:</span> <span class="n">USER_AGENT</span><span class="p">},</span>
-    <span class="n">retries</span><span class="o">=</span><span class="n">urllib3</span><span class="o">.</span><span class="n">Retry</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>   <span class="c1"># do not hammer the site if it says no</span>
+    <span class="n">retries</span><span class="o">=</span><span class="n">urllib3</span><span class="o">.</span><span class="n">Retry</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
     <span class="n">timeout</span><span class="o">=</span><span class="mf">15.0</span><span class="p">,</span>
 <span class="p">)</span>
 
-<span class="c1"># Patterns for the badge row.</span>
+
 <span class="n">TERM_PATTERN</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"(Fall|Spring|Summer|Winter)\s+\d</span><span class="si">{4}</span><span class="s2">"</span><span class="p">)</span>
-<span class="c1"># "Accepted on Sep 11" -&gt; group 1 = "Accepted", group 2 = "Sep 11"</span>
+
 <span class="n">DECISION_PATTERN</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"^(Accepted|Rejected|Wait listed|Interview|Other)(?:\s+on\s+(.*))?$"</span><span class="p">)</span>
 
-<span class="c1"># AppleScript that asks Chrome to open a URL in a new tab, wait for it to load,</span>
-<span class="c1"># return the page's HTML, and close the tab. __URL__ is replaced at run time.</span>
+
 <span class="n">CHROME_SCRIPT</span> <span class="o">=</span> <span class="s1">'''</span>
 <span class="s1">tell application "Google Chrome"</span>
 <span class="s1">    set theTab to make new tab at end of tabs of front window with properties {URL:"__URL__"}</span>
@@ -133,7 +130,6 @@
 <span class="s1">'''</span>
 
 
-<span class="c1"># ------------------------------------------------------------ robots.txt ---</span>
 <div class="viewcode-block" id="_is_challenge_page">
 <a class="viewcode-back" href="../../api.html#src.scrape._is_challenge_page">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">_is_challenge_page</span><span class="p">(</span><span class="n">html</span><span class="p">):</span>
@@ -188,7 +184,6 @@
 
 
 
-<span class="c1"># -------------------------------------------------------------- fetching ---</span>
 <div class="viewcode-block" id="_fetch_with_urllib3">
 <a class="viewcode-back" href="../../api.html#src.scrape._fetch_with_urllib3">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">_fetch_with_urllib3</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
@@ -214,22 +209,21 @@
 
 
 
-<span class="c1"># --------------------------------------------------------------- parsing ---</span>
 <div class="viewcode-block" id="_empty_entry">
 <a class="viewcode-back" href="../../api.html#src.scrape._empty_entry">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">_empty_entry</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">"""A dictionary with every field present and empty, so all entries share the same keys."""</span>
     <span class="k">return</span> <span class="p">{</span>
-        <span class="s2">"program"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>           <span class="c1"># "Program, University" combined, for the LLM step</span>
+        <span class="s2">"program"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
         <span class="s2">"program_name"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
         <span class="s2">"university"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
         <span class="s2">"Degree"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
         <span class="s2">"comments"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
         <span class="s2">"date_added"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
         <span class="s2">"url"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
-        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>            <span class="c1"># raw decision text, e.g. "Accepted on Sep 11"</span>
-        <span class="s2">"decision"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>          <span class="c1"># "Accepted", "Rejected", "Wait listed", ...</span>
-        <span class="s2">"decision_date"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>     <span class="c1"># "Sep 11"</span>
+        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+        <span class="s2">"decision"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+        <span class="s2">"decision_date"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
         <span class="s2">"term"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
         <span class="s2">"US/International"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
         <span class="s2">"GPA"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
@@ -322,7 +316,6 @@
 
 
 
-<span class="c1"># ------------------------------------------------------------ next page ---</span>
 <div class="viewcode-block" id="_decode_cursor">
 <a class="viewcode-back" href="../../api.html#src.scrape._decode_cursor">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">_decode_cursor</span><span class="p">(</span><span class="n">cursor</span><span class="p">):</span>

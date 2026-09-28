@@ -79,18 +79,17 @@
 <span class="sd">function is called, or when you run ``python -m src.load_data FILE.json``.</span>
 <span class="sd">"""</span>
 
-<span class="c1"># ---- Block 1: imports ----</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>                                   <span class="c1"># math.isfinite: rejects "nan" and "inf" as GPA/GRE values</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>                                    <span class="c1"># sys.argv: the file name typed after the command</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">psycopg</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">src.db_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_database_url</span>    <span class="c1"># M4 CHANGE: DATABASE_URL instead of a hard-coded database + password prompt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">src.db_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_database_url</span>
 
 
-<span class="c1"># ---- Block 2: the table and the insert, as constants (schema UNCHANGED from Module 3) ----</span>
 <span class="n">CREATE_TABLE</span> <span class="o">=</span> <span class="s2">"""</span>
 <span class="s2">    CREATE TABLE IF NOT EXISTS applicants (</span>
 <span class="s2">        p_id                     INTEGER PRIMARY KEY,</span>
@@ -111,7 +110,7 @@
 <span class="s2">    )</span>
 <span class="s2">"""</span>
 
-<span class="c1"># ON CONFLICT (p_id) DO NOTHING = a row whose p_id already exists is skipped (no duplicates)</span>
+
 <span class="n">INSERT</span> <span class="o">=</span> <span class="s2">"""</span>
 <span class="s2">    INSERT INTO applicants (</span>
 <span class="s2">        p_id, program, comments, date_added, url,</span>
@@ -125,7 +124,6 @@
 <span class="s2">"""</span>
 
 
-<span class="c1"># ---- Block 3: converters - turn one raw JSON value into a clean database value ----</span>
 <div class="viewcode-block" id="to_text">
 <a class="viewcode-back" href="../../api.html#src.load_data.to_text">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">to_text</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
@@ -136,7 +134,7 @@
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
-    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="kc">None</span>          <span class="c1"># "" after stripping -&gt; None</span></div>
+    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="kc">None</span></div>
 
 
 
@@ -153,9 +151,9 @@
         <span class="k">return</span> <span class="kc">None</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">number</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>                         <span class="c1"># "abc" cannot become a number</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
-    <span class="k">return</span> <span class="n">number</span> <span class="k">if</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">number</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>    <span class="c1"># M4 CHANGE: "nan"/"inf" would corrupt averages</span></div>
+    <span class="k">return</span> <span class="n">number</span> <span class="k">if</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">number</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span></div>
 
 
 
@@ -172,7 +170,7 @@
         <span class="k">return</span> <span class="kc">None</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s2">"%b </span><span class="si">%d</span><span class="s2">, %Y"</span><span class="p">)</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
-    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>                         <span class="c1"># M4 CHANGE: a badly formatted date used to crash the whole load</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 
@@ -188,14 +186,11 @@
     <span class="n">text</span> <span class="o">=</span> <span class="n">to_text</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">text</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
-    <span class="n">last_part</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>      <span class="c1"># the piece after the last "/"</span>
+    <span class="n">last_part</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
     <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">last_part</span><span class="p">)</span> <span class="k">if</span> <span class="n">last_part</span><span class="o">.</span><span class="n">isdigit</span><span class="p">()</span> <span class="k">else</span> <span class="kc">None</span></div>
 
 
 
-<span class="c1"># ---- Block 4: one JSON record -&gt; one database row (or None if the record is unusable) ----</span>
-<span class="c1"># M4 CHANGE (grader deduction): a record that is null, not a dictionary, or has no usable URL</span>
-<span class="c1"># used to crash the loader with a TypeError. Now it is skipped.</span>
 <div class="viewcode-block" id="row_to_values">
 <a class="viewcode-back" href="../../api.html#src.load_data.row_to_values">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">row_to_values</span><span class="p">(</span><span class="n">applicant</span><span class="p">):</span>
@@ -204,10 +199,10 @@
 <span class="sd">    :param applicant: one dictionary from the JSON file.</span>
 <span class="sd">    :returns: a 15-value tuple, or ``None`` if the record is malformed.</span>
 <span class="sd">    """</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">applicant</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>        <span class="c1"># null, a number, a list... -&gt; unusable</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">applicant</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
         <span class="k">return</span> <span class="kc">None</span>
     <span class="n">p_id</span> <span class="o">=</span> <span class="n">result_id</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"url"</span><span class="p">))</span>
-    <span class="k">if</span> <span class="n">p_id</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>                           <span class="c1"># no URL, or no number at its end -&gt; no primary key</span>
+    <span class="k">if</span> <span class="n">p_id</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
     <span class="k">return</span> <span class="p">(</span>
         <span class="n">p_id</span><span class="p">,</span>
@@ -229,7 +224,6 @@
 
 
 
-<span class="c1"># ---- Block 5: database functions - each opens its own connection from DATABASE_URL ----</span>
 <div class="viewcode-block" id="ensure_table">
 <a class="viewcode-back" href="../../api.html#src.load_data.ensure_table">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">ensure_table</span><span class="p">(</span><span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -242,8 +236,6 @@
 
 
 
-<span class="c1"># "with psycopg.connect(...) as conn:" commits at the end if everything worked,</span>
-<span class="c1"># and ROLLS BACK everything if any insert fails -&gt; never a half-loaded batch.</span>
 <div class="viewcode-block" id="insert_rows">
 <a class="viewcode-back" href="../../api.html#src.load_data.insert_rows">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">insert_rows</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -261,10 +253,10 @@
         <span class="k">with</span> <span class="n">conn</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span> <span class="k">as</span> <span class="n">cur</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">applicant</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
                 <span class="n">values</span> <span class="o">=</span> <span class="n">row_to_values</span><span class="p">(</span><span class="n">applicant</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">values</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>                 <span class="c1"># malformed record -&gt; skip it</span>
+                <span class="k">if</span> <span class="n">values</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="k">continue</span>
                 <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">INSERT</span><span class="p">,</span> <span class="n">values</span><span class="p">)</span>
-                <span class="n">inserted</span> <span class="o">+=</span> <span class="n">cur</span><span class="o">.</span><span class="n">rowcount</span>           <span class="c1"># 1 if inserted, 0 if the p_id already existed</span>
+                <span class="n">inserted</span> <span class="o">+=</span> <span class="n">cur</span><span class="o">.</span><span class="n">rowcount</span>
     <span class="k">return</span> <span class="n">inserted</span></div>
 
 
@@ -296,9 +288,6 @@
 
 
 
-<span class="c1"># ---- Block 6: the command-line entry point ----</span>
-<span class="c1"># python -m src.load_data                       -&gt; loads llm_extend_applicant_data.json</span>
-<span class="c1"># python -m src.load_data path/to/other.json    -&gt; loads that file</span>
 <div class="viewcode-block" id="main">
 <a class="viewcode-back" href="../../api.html#src.load_data.main">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">argv</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -315,7 +304,7 @@
 
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>  <span class="c1"># pragma: no cover  (tests call main() directly)</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
     <span class="n">main</span><span class="p">()</span>
 </pre></div>
 

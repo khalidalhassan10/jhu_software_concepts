@@ -75,15 +75,10 @@
   <h1>Source code for src.db_config</h1><div class="highlight"><pre>
 <span></span><span class="sd">"""Database settings: where PostgreSQL is, read from the DATABASE_URL environment variable."""</span>
 
-<span class="c1"># ---- Block 1: imports ----</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>                                <span class="c1"># os.environ = the environment variables of your Terminal</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 
 
-<span class="c1"># ---- Block 2: the one function every other file uses to find the database ----</span>
-<span class="c1"># Order of preference:</span>
-<span class="c1">#   1. a URL passed in directly (tests pass a test-database URL this way = "tests may override")</span>
-<span class="c1">#   2. the DATABASE_URL environment variable (how you run the app normally)</span>
-<span class="c1"># No password prompt: tests and GitHub Actions cannot type a password.</span>
 <div class="viewcode-block" id="get_database_url">
 <a class="viewcode-back" href="../../api.html#src.db_config.get_database_url">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_database_url</span><span class="p">(</span><span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -93,8 +88,8 @@
 <span class="sd">    :returns: a URL such as ``postgresql://postgres:PASSWORD@localhost:5432/gradcafe``.</span>
 <span class="sd">    :raises RuntimeError: if no URL was passed and DATABASE_URL is not set.</span>
 <span class="sd">    """</span>
-    <span class="n">url</span> <span class="o">=</span> <span class="n">database_url</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"DATABASE_URL"</span><span class="p">)</span>     <span class="c1"># passed-in URL wins; else the environment</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">url</span><span class="p">:</span>                                              <span class="c1"># neither exists -&gt; stop with a clear message</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="n">database_url</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"DATABASE_URL"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">url</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
             <span class="s2">"DATABASE_URL is not set. Example: "</span>
             <span class="s1">'export DATABASE_URL="postgresql://postgres:PASSWORD@localhost:5432/gradcafe"'</span>

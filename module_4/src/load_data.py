@@ -4,18 +4,17 @@ Import-safe: importing this module does nothing. Loading happens only when a
 function is called, or when you run ``python -m src.load_data FILE.json``.
 """
 
-# ---- Block 1: imports ----
+
 import json
-import math                                   # math.isfinite: rejects "nan" and "inf" as GPA/GRE values
-import sys                                    # sys.argv: the file name typed after the command
+import math
+import sys
 from datetime import datetime
 
 import psycopg
 
-from src.db_config import get_database_url    # M4 CHANGE: DATABASE_URL instead of a hard-coded database + password prompt
+from src.db_config import get_database_url
 
 
-# ---- Block 2: the table and the insert, as constants (schema UNCHANGED from Module 3) ----
 CREATE_TABLE = """
     CREATE TABLE IF NOT EXISTS applicants (
         p_id                     INTEGER PRIMARY KEY,
@@ -36,7 +35,7 @@ CREATE_TABLE = """
     )
 """
 
-# ON CONFLICT (p_id) DO NOTHING = a row whose p_id already exists is skipped (no duplicates)
+
 INSERT = """
     INSERT INTO applicants (
         p_id, program, comments, date_added, url,
@@ -50,7 +49,6 @@ INSERT = """
 """
 
 
-# ---- Block 3: converters - turn one raw JSON value into a clean database value ----
 def to_text(value):
     """Strip a value to text; empty or missing becomes ``None``.
 
@@ -59,7 +57,7 @@ def to_text(value):
     """
     if value is None:
         return None
-    return str(value).strip() or None          # "" after stripping -> None
+    return str(value).strip() or None
 
 
 def to_float(value):
@@ -73,9 +71,9 @@ def to_float(value):
         return None
     try:
         number = float(value)
-    except ValueError:                         # "abc" cannot become a number
+    except ValueError:
         return None
-    return number if math.isfinite(number) else None    # M4 CHANGE: "nan"/"inf" would corrupt averages
+    return number if math.isfinite(number) else None
 
 
 def to_date(value):
@@ -89,7 +87,7 @@ def to_date(value):
         return None
     try:
         return datetime.strptime(value, "%b %d, %Y").date()
-    except ValueError:                         # M4 CHANGE: a badly formatted date used to crash the whole load
+    except ValueError:
         return None
 
 
@@ -102,23 +100,20 @@ def result_id(url):
     text = to_text(url)
     if text is None:
         return None
-    last_part = text.rstrip("/").split("/")[-1]      # the piece after the last "/"
+    last_part = text.rstrip("/").split("/")[-1]
     return int(last_part) if last_part.isdigit() else None
 
 
-# ---- Block 4: one JSON record -> one database row (or None if the record is unusable) ----
-# M4 CHANGE (grader deduction): a record that is null, not a dictionary, or has no usable URL
-# used to crash the loader with a TypeError. Now it is skipped.
 def row_to_values(applicant):
     """Map one scraped record to the 15 column values, in INSERT order.
 
     :param applicant: one dictionary from the JSON file.
     :returns: a 15-value tuple, or ``None`` if the record is malformed.
     """
-    if not isinstance(applicant, dict):        # null, a number, a list... -> unusable
+    if not isinstance(applicant, dict):
         return None
     p_id = result_id(applicant.get("url"))
-    if p_id is None:                           # no URL, or no number at its end -> no primary key
+    if p_id is None:
         return None
     return (
         p_id,
@@ -139,7 +134,6 @@ def row_to_values(applicant):
     )
 
 
-# ---- Block 5: database functions - each opens its own connection from DATABASE_URL ----
 def ensure_table(database_url=None):
     """Create the ``applicants`` table if it does not exist yet.
 
@@ -149,8 +143,6 @@ def ensure_table(database_url=None):
         conn.execute(CREATE_TABLE)
 
 
-# "with psycopg.connect(...) as conn:" commits at the end if everything worked,
-# and ROLLS BACK everything if any insert fails -> never a half-loaded batch.
 def insert_rows(rows, database_url=None):
     """Insert scraped records, skipping malformed ones and p_ids already stored.
 
@@ -166,10 +158,10 @@ def insert_rows(rows, database_url=None):
         with conn.cursor() as cur:
             for applicant in rows:
                 values = row_to_values(applicant)
-                if values is None:                 # malformed record -> skip it
+                if values is None:
                     continue
                 cur.execute(INSERT, values)
-                inserted += cur.rowcount           # 1 if inserted, 0 if the p_id already existed
+                inserted += cur.rowcount
     return inserted
 
 
@@ -194,9 +186,6 @@ def load_file(path, database_url=None):
     return len(rows), insert_rows(rows, database_url)
 
 
-# ---- Block 6: the command-line entry point ----
-# python -m src.load_data                       -> loads llm_extend_applicant_data.json
-# python -m src.load_data path/to/other.json    -> loads that file
 def main(argv=None):
     """Load a JSON file named on the command line and print a summary.
 
@@ -210,5 +199,5 @@ def main(argv=None):
     print(f"Applicants stored in PostgreSQL: {count_rows()}")
 
 
-if __name__ == "__main__":  # pragma: no cover  (tests call main() directly)
+if __name__ == "__main__":  # pragma: no cover
     main()

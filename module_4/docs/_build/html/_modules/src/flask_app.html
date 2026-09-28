@@ -75,12 +75,12 @@
   <h1>Source code for src.flask_app</h1><div class="highlight"><pre>
 <span></span><span class="sd">"""Flask web layer: the Analysis page plus the Pull Data and Update Analysis endpoints.</span>
 
-<span class="sd">M4 CHANGE: replaces app.py. Everything is built by ``create_app(...)`` so a test can</span>
+<span class="sd">Everything is built by ``create_app(...)`` so a test can</span>
 <span class="sd">make its own app with fake scraper / loader / query functions and its own database.</span>
 <span class="sd">Run: ``flask --app src.flask_app:create_app run`` (from module_4, DATABASE_URL set).</span>
 <span class="sd">"""</span>
 
-<span class="c1"># ---- Block 1: imports ----</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">flask</span><span class="w"> </span><span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">,</span> <span class="n">redirect</span><span class="p">,</span> <span class="n">render_template</span><span class="p">,</span> <span class="n">url_for</span>
@@ -92,18 +92,16 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">src.orm_queries</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_analyses</span>
 
 
-<span class="c1"># ---- Block 2: the busy flag, shared by the routes ----</span>
-<span class="c1"># Tests set state.busy = True directly to simulate "a pull is running" (no sleep() needed).</span>
 <div class="viewcode-block" id="PullState">
 <a class="viewcode-back" href="../../api.html#src.flask_app.PullState">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">PullState</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Whether a pull is running, the last pull's result, and the last analysis read."""</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>   <span class="c1"># only one route may claim the flag at a time</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">busy</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">last_result</span> <span class="o">=</span> <span class="kc">None</span>         <span class="c1"># e.g. {"ok": True, "inserted": 6}</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">analysis</span> <span class="o">=</span> <span class="kc">None</span>            <span class="c1"># the latest run_analyses() dictionary</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_result</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">analysis</span> <span class="o">=</span> <span class="kc">None</span>
 
 <div class="viewcode-block" id="PullState.start">
 <a class="viewcode-back" href="../../api.html#src.flask_app.PullState.start">[docs]</a>
@@ -127,8 +125,6 @@
 
 
 
-<span class="c1"># ---- Block 3: formatting - the assignment's rules, in one place ----</span>
-<span class="c1"># counts: 29,577   averages: 3.79   percentages: 46.33% (always two decimals)   missing: n/a</span>
 <div class="viewcode-block" id="fmt_count">
 <a class="viewcode-back" href="../../api.html#src.flask_app.fmt_count">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">fmt_count</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
@@ -162,7 +158,7 @@
 <span class="sd">    :returns: a list of ``(label, answer)`` tuples, one per displayed answer.</span>
 <span class="sd">    """</span>
     <span class="n">gpa</span><span class="p">,</span> <span class="n">gre</span><span class="p">,</span> <span class="n">gre_v</span><span class="p">,</span> <span class="n">gre_aw</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"q3"</span><span class="p">]</span>
-    <span class="n">shares</span> <span class="o">=</span> <span class="p">{</span><span class="n">degree</span><span class="p">:</span> <span class="p">(</span><span class="n">count</span><span class="p">,</span> <span class="n">pct</span><span class="p">)</span> <span class="k">for</span> <span class="n">degree</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">pct</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s2">"q10"</span><span class="p">]}</span>   <span class="c1"># {} on an empty database</span>
+    <span class="n">shares</span> <span class="o">=</span> <span class="p">{</span><span class="n">degree</span><span class="p">:</span> <span class="p">(</span><span class="n">count</span><span class="p">,</span> <span class="n">pct</span><span class="p">)</span> <span class="k">for</span> <span class="n">degree</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">pct</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s2">"q10"</span><span class="p">]}</span>
     <span class="n">total</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"q10_total"</span><span class="p">]</span>
     <span class="n">acc_n</span><span class="p">,</span> <span class="n">acc_avg</span><span class="p">,</span> <span class="n">rej_n</span><span class="p">,</span> <span class="n">rej_avg</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"q11"</span><span class="p">]</span>
 
@@ -200,7 +196,6 @@
 
 
 
-<span class="c1"># ---- Block 4: the real scraper / loader / query, used when a test does not pass fakes ----</span>
 <div class="viewcode-block" id="default_scraper">
 <a class="viewcode-back" href="../../api.html#src.flask_app.default_scraper">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">default_scraper</span><span class="p">(</span><span class="n">database_url</span><span class="p">):</span>
@@ -227,14 +222,13 @@
 <span class="w">    </span><span class="sd">"""Return a no-argument query that runs the ORM analysis."""</span>
     <span class="n">session_factory</span> <span class="o">=</span> <span class="n">create_session_factory</span><span class="p">(</span><span class="n">database_url</span><span class="p">)</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">():</span>
-        <span class="n">ensure_table</span><span class="p">(</span><span class="n">database_url</span><span class="p">)</span>      <span class="c1"># a brand-new database gets an empty table, not an error page</span>
+        <span class="n">ensure_table</span><span class="p">(</span><span class="n">database_url</span><span class="p">)</span>
         <span class="k">with</span> <span class="n">session_factory</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">run_analyses</span><span class="p">(</span><span class="n">session</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">query</span></div>
 
 
 
-<span class="c1"># ---- Block 5: the app factory ----</span>
 <div class="viewcode-block" id="create_app">
 <a class="viewcode-back" href="../../api.html#src.flask_app.create_app">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">(</span><span class="n">scraper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">loader</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">run_in_background</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
@@ -256,7 +250,7 @@
     <span class="n">state</span> <span class="o">=</span> <span class="n">PullState</span><span class="p">()</span>
     <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">DATABASE_URL</span><span class="o">=</span><span class="n">url</span><span class="p">,</span> <span class="n">PULL_STATE</span><span class="o">=</span><span class="n">state</span><span class="p">)</span>
 
-    <span class="c1"># -- the pull itself: scraper -&gt; loader, then release the busy flag (even on error) --</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">run_pull</span><span class="p">():</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">inserted</span> <span class="o">=</span> <span class="n">loader</span><span class="p">(</span><span class="n">scraper</span><span class="p">())</span>
@@ -268,7 +262,7 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">index</span><span class="p">():</span>
         <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">url_for</span><span class="p">(</span><span class="s2">"analysis"</span><span class="p">))</span>
 
-    <span class="c1"># -- the page: shows the latest analysis; reads the database on the first visit --</span>
+
     <span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/analysis"</span><span class="p">)</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">analysis</span><span class="p">():</span>
         <span class="n">error</span> <span class="o">=</span> <span class="kc">None</span>
@@ -281,7 +275,7 @@
         <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s2">"analysis.html"</span><span class="p">,</span> <span class="n">results</span><span class="o">=</span><span class="n">results</span><span class="p">,</span> <span class="n">busy</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">busy</span><span class="p">,</span>
                                <span class="n">last_result</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">last_result</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">)</span>
 
-    <span class="c1"># -- Pull Data: 409 if busy; else pull (202 in the background, or 200/500 when synchronous) --</span>
+
     <span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/pull-data"</span><span class="p">)</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">pull_data_route</span><span class="p">():</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">state</span><span class="o">.</span><span class="n">start</span><span class="p">():</span>
@@ -292,7 +286,7 @@
         <span class="n">run_pull</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">last_result</span><span class="p">),</span> <span class="p">(</span><span class="mi">200</span> <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">last_result</span><span class="p">[</span><span class="s2">"ok"</span><span class="p">]</span> <span class="k">else</span> <span class="mi">500</span><span class="p">)</span>
 
-    <span class="c1"># -- Update Analysis: 409 if busy (and no query runs); else re-read the database --</span>
+
     <span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/update-analysis"</span><span class="p">)</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">update_analysis</span><span class="p">():</span>
         <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">busy</span><span class="p">:</span>

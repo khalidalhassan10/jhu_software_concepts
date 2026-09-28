@@ -75,12 +75,11 @@
   <h1>Source code for src.pull_data</h1><div class="highlight"><pre>
 <span></span><span class="sd">"""Pull Data: find Grad Café entries newer than the database and insert them.</span>
 
-<span class="sd">M4 CHANGE: split into small functions so tests can replace the parts that touch the</span>
-<span class="sd">internet (the page fetcher) or the database, and so the Flask app can call them</span>
-<span class="sd">directly instead of starting a subprocess.</span>
+<span class="sd">It is split into small functions so tests can replace the parts that touch the</span>
+<span class="sd">internet (the page fetcher) or the database, and so the Flask app can call them directly.</span>
 <span class="sd">"""</span>
 
-<span class="c1"># ---- Block 1: imports ----</span>
+
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
 
@@ -91,11 +90,10 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">src.db_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_database_url</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">src.load_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">CREATE_TABLE</span><span class="p">,</span> <span class="n">insert_rows</span><span class="p">,</span> <span class="n">result_id</span>
 
-<span class="n">MAX_PAGES</span> <span class="o">=</span> <span class="mi">40</span>                  <span class="c1"># safety cap: never walk more than 40 pages in one pull</span>
-<span class="n">STOP_AFTER_KNOWN_PAGES</span> <span class="o">=</span> <span class="mi">2</span>      <span class="c1"># stop after 2 pages in a row with nothing new</span>
+<span class="n">MAX_PAGES</span> <span class="o">=</span> <span class="mi">40</span>
+<span class="n">STOP_AFTER_KNOWN_PAGES</span> <span class="o">=</span> <span class="mi">2</span>
 
 
-<span class="c1"># ---- Block 2: which p_ids does the database already hold? ----</span>
 <div class="viewcode-block" id="known_ids">
 <a class="viewcode-back" href="../../api.html#src.pull_data.known_ids">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">known_ids</span><span class="p">(</span><span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -105,14 +103,11 @@
 <span class="sd">    :returns: a set of integers.</span>
 <span class="sd">    """</span>
     <span class="k">with</span> <span class="n">psycopg</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">get_database_url</span><span class="p">(</span><span class="n">database_url</span><span class="p">))</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
-        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">CREATE_TABLE</span><span class="p">)</span>                          <span class="c1"># a brand-new database has no table yet</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">CREATE_TABLE</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span><span class="n">row</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT p_id FROM applicants"</span><span class="p">)}</span></div>
 
 
 
-<span class="c1"># ---- Block 3: walk pages from newest to older, keeping only entries not in `known` ----</span>
-<span class="c1"># fetch_page is PASSED IN (Idea 1): the real app passes live_fetcher(), tests pass a</span>
-<span class="c1"># function that returns saved HTML. This function never touches the internet itself.</span>
 <div class="viewcode-block" id="scrape_new">
 <a class="viewcode-back" href="../../api.html#src.pull_data.scrape_new">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">scrape_new</span><span class="p">(</span><span class="n">known</span><span class="p">,</span> <span class="n">fetch_page</span><span class="p">,</span> <span class="n">start_url</span><span class="o">=</span><span class="n">scrape</span><span class="o">.</span><span class="n">START_URL</span><span class="p">,</span> <span class="n">max_pages</span><span class="o">=</span><span class="n">MAX_PAGES</span><span class="p">):</span>
@@ -156,7 +151,6 @@
 
 
 
-<span class="c1"># ---- Block 4: the REAL page fetcher (internet + Chrome) - used by the app, never by tests ----</span>
 <div class="viewcode-block" id="fetch">
 <a class="viewcode-back" href="../../api.html#src.pull_data.fetch">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">fetch</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">use_chrome</span><span class="p">):</span>
@@ -196,19 +190,18 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Grad Café returned HTTP </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">. Pull stopped."</span><span class="p">)</span>
 
-    <span class="n">saved</span> <span class="o">=</span> <span class="p">{</span><span class="n">scrape</span><span class="o">.</span><span class="n">START_URL</span><span class="p">:</span> <span class="n">first_html</span><span class="p">}</span> <span class="k">if</span> <span class="n">first_html</span> <span class="k">else</span> <span class="p">{}</span>    <span class="c1"># reuse the probe page</span>
+    <span class="n">saved</span> <span class="o">=</span> <span class="p">{</span><span class="n">scrape</span><span class="o">.</span><span class="n">START_URL</span><span class="p">:</span> <span class="n">first_html</span><span class="p">}</span> <span class="k">if</span> <span class="n">first_html</span> <span class="k">else</span> <span class="p">{}</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">fetch_page</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">url</span> <span class="ow">in</span> <span class="n">saved</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">saved</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
-        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">scrape</span><span class="o">.</span><span class="n">DELAY_SECONDS</span><span class="p">)</span>                             <span class="c1"># politeness pause (live only)</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">scrape</span><span class="o">.</span><span class="n">DELAY_SECONDS</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">fetch</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">use_chrome</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">fetch_page</span></div>
 
 
 
-<span class="c1"># ---- Block 5: the whole pull, for running it from Terminal ----</span>
 <div class="viewcode-block" id="main">
 <a class="viewcode-back" href="../../api.html#src.pull_data.main">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -225,7 +218,7 @@
 
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>  <span class="c1"># pragma: no cover  (tests call main() directly)</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">main</span><span class="p">()</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>

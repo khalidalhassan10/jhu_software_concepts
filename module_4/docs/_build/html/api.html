@@ -215,7 +215,7 @@ each state (pull running, last pull result, database unreachable).</p></td>
 </tbody>
 </table>
 <p id="module-src.flask_app">Flask web layer: the Analysis page plus the Pull Data and Update Analysis endpoints.</p>
-<p>M4 CHANGE: replaces app.py. Everything is built by <code class="docutils literal notranslate"><span class="pre">create_app(...)</span></code> so a test can
+<p>Everything is built by <code class="docutils literal notranslate"><span class="pre">create_app(...)</span></code> so a test can
 make its own app with fake scraper / loader / query functions and its own database.
 Run: <code class="docutils literal notranslate"><span class="pre">flask</span> <span class="pre">--app</span> <span class="pre">src.flask_app:create_app</span> <span class="pre">run</span></code> (from module_4, DATABASE_URL set).</p>
 <dl class="py class">
@@ -321,9 +321,7 @@ capture the page from a Chrome window you already verified by hand (AppleScript)
 </ol>
 </dd>
 </dl>
-<p>M4 CHANGE: the Module 2 bulk scraper (scrape_data, save/load, the progress file and the
-script entry point) was removed. Pull Data (pull_data.py) drives the loop now, and
-every line kept here must be covered by the tests.</p>
+<p>Pull Data (pull_data.py) walks the pages; this module fetches and reads them.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="src.scrape._is_challenge_page">
 <span class="sig-prename descclassname"><span class="pre">src.scrape.</span></span><span class="sig-name descname"><span class="pre">_is_challenge_page</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">html</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/scrape.html#_is_challenge_page"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#src.scrape._is_challenge_page" title="Link to this definition"></a></dt>
@@ -413,8 +411,7 @@ read and it allows the path.</p>
 </ul>
 </dd>
 </dl>
-<p>M4 CHANGE: the Module 2 file-reading/writing script part was removed; Pull Data only
-uses clean_data(), and every line kept here must be covered by the tests.</p>
+<p>Pull Data calls clean_data() on every page it reads.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="src.clean._clean_text">
 <span class="sig-prename descclassname"><span class="pre">src.clean.</span></span><span class="sig-name descname"><span class="pre">_clean_text</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/clean.html#_clean_text"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#src.clean._clean_text" title="Link to this definition"></a></dt>
@@ -461,9 +458,8 @@ uses clean_data(), and every line kept here must be covered by the tests.</p>
 <section id="module-src.pull_data">
 <span id="pull-data-py"></span><h2>pull_data.py<a class="headerlink" href="#module-src.pull_data" title="Link to this heading"></a></h2>
 <p>Pull Data: find Grad Café entries newer than the database and insert them.</p>
-<p>M4 CHANGE: split into small functions so tests can replace the parts that touch the
-internet (the page fetcher) or the database, and so the Flask app can call them
-directly instead of starting a subprocess.</p>
+<p>It is split into small functions so tests can replace the parts that touch the
+internet (the page fetcher) or the database, and so the Flask app can call them directly.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="src.pull_data.known_ids">
 <span class="sig-prename descclassname"><span class="pre">src.pull_data.</span></span><span class="sig-name descname"><span class="pre">known_ids</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">database_url</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/src/pull_data.html#known_ids"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#src.pull_data.known_ids" title="Link to this definition"></a></dt>

@@ -76,7 +76,7 @@
 <span></span><span class="sd">"""Answer the analysis questions using the Applicant SQLAlchemy model."""</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy</span><span class="w"> </span><span class="kn">import</span> <span class="n">func</span><span class="p">,</span> <span class="n">or_</span><span class="p">,</span> <span class="n">select</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">src.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Applicant</span><span class="p">,</span> <span class="n">create_session_factory</span>   <span class="c1"># M4 CHANGE: "src." prefix</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">src.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Applicant</span><span class="p">,</span> <span class="n">create_session_factory</span>
 
 <span class="n">A</span> <span class="o">=</span> <span class="n">Applicant</span>
 
@@ -113,14 +113,14 @@
 <span class="w">    </span><span class="sd">"""Calculate Q1 through Q11 from the existing applicants table."""</span>
     <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
 
-    <span class="c1"># Q1</span>
+
     <span class="n">result</span><span class="p">[</span><span class="s2">"q1"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span>
         <span class="n">select</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">count</span><span class="p">())</span>
         <span class="o">.</span><span class="n">select_from</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
         <span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">term</span><span class="o">.</span><span class="n">ilike</span><span class="p">(</span><span class="s2">"Fall 2026"</span><span class="p">))</span>
     <span class="p">)</span>
 
-    <span class="c1"># Q2</span>
+
     <span class="n">result</span><span class="p">[</span><span class="s2">"q2"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span>
         <span class="n">select</span><span class="p">(</span>
             <span class="mf">100.0</span>
@@ -134,7 +134,7 @@
         <span class="p">)</span>
     <span class="p">)</span>
 
-    <span class="c1"># Q3: Each average ignores NULL values in its own column.</span>
+
     <span class="n">result</span><span class="p">[</span><span class="s2">"q3"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
         <span class="n">select</span><span class="p">(</span>
             <span class="n">func</span><span class="o">.</span><span class="n">avg</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">gpa</span><span class="p">),</span>
@@ -144,7 +144,7 @@
         <span class="p">)</span>
     <span class="p">)</span><span class="o">.</span><span class="n">one</span><span class="p">()</span>
 
-    <span class="c1"># Q4</span>
+
     <span class="n">result</span><span class="p">[</span><span class="s2">"q4"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span>
         <span class="n">select</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">avg</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">gpa</span><span class="p">))</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
             <span class="n">A</span><span class="o">.</span><span class="n">term</span><span class="o">.</span><span class="n">ilike</span><span class="p">(</span><span class="s2">"Fall 2026"</span><span class="p">),</span>
@@ -152,7 +152,7 @@
         <span class="p">)</span>
     <span class="p">)</span>
 
-    <span class="c1"># Q5</span>
+
     <span class="n">result</span><span class="p">[</span><span class="s2">"q5"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span>
         <span class="n">select</span><span class="p">(</span>
             <span class="mf">100.0</span>
@@ -161,7 +161,7 @@
         <span class="p">)</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">term</span><span class="o">.</span><span class="n">ilike</span><span class="p">(</span><span class="s2">"Fall 2025"</span><span class="p">))</span>
     <span class="p">)</span>
 
-    <span class="c1"># Q6</span>
+
     <span class="n">result</span><span class="p">[</span><span class="s2">"q6"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span>
         <span class="n">select</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">avg</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">gpa</span><span class="p">))</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
             <span class="n">A</span><span class="o">.</span><span class="n">term</span><span class="o">.</span><span class="n">ilike</span><span class="p">(</span><span class="s2">"Fall 2026"</span><span class="p">),</span>
@@ -169,7 +169,7 @@
         <span class="p">)</span>
     <span class="p">)</span>
 
-    <span class="c1"># Q7</span>
+
     <span class="n">result</span><span class="p">[</span><span class="s2">"q7"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span>
         <span class="n">select</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">count</span><span class="p">())</span>
         <span class="o">.</span><span class="n">select_from</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
@@ -183,14 +183,14 @@
         <span class="p">)</span>
     <span class="p">)</span>
 
-    <span class="c1"># Conditions shared by Q8 and Q9.</span>
+
     <span class="n">common</span> <span class="o">=</span> <span class="p">(</span>
         <span class="n">A</span><span class="o">.</span><span class="n">degree</span><span class="o">.</span><span class="n">ilike</span><span class="p">(</span><span class="s2">"PhD"</span><span class="p">),</span>
         <span class="n">A</span><span class="o">.</span><span class="n">term</span><span class="o">.</span><span class="n">ilike</span><span class="p">(</span><span class="s2">"Fall 2026"</span><span class="p">),</span>
         <span class="n">A</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">ilike</span><span class="p">(</span><span class="s2">"Accepted%"</span><span class="p">),</span>
     <span class="p">)</span>
 
-    <span class="c1"># Q8: Original downloaded program field.</span>
+
     <span class="n">result</span><span class="p">[</span><span class="s2">"q8"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span>
         <span class="n">select</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">count</span><span class="p">())</span>
         <span class="o">.</span><span class="n">select_from</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
@@ -201,7 +201,7 @@
         <span class="p">)</span>
     <span class="p">)</span>
 
-    <span class="c1"># Q9: LLM-generated university and program fields.</span>
+
     <span class="n">result</span><span class="p">[</span><span class="s2">"q9"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span>
         <span class="n">select</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">count</span><span class="p">())</span>
         <span class="o">.</span><span class="n">select_from</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
@@ -212,7 +212,7 @@
         <span class="p">)</span>
     <span class="p">)</span>
 
-    <span class="c1"># Q10: Include all Fall 2026 CS entries in the denominator.</span>
+
     <span class="n">masters_count</span><span class="p">,</span> <span class="n">phd_count</span><span class="p">,</span> <span class="n">total</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
         <span class="n">select</span><span class="p">(</span>
             <span class="n">func</span><span class="o">.</span><span class="n">count</span><span class="p">()</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">degree</span><span class="o">.</span><span class="n">ilike</span><span class="p">(</span><span class="s2">"Masters"</span><span class="p">)),</span>
@@ -233,7 +233,7 @@
             <span class="p">(</span><span class="s2">"PhD"</span><span class="p">,</span> <span class="n">phd_count</span><span class="p">,</span> <span class="mf">100.0</span> <span class="o">*</span> <span class="n">phd_count</span> <span class="o">/</span> <span class="n">total</span><span class="p">),</span>
         <span class="p">]</span>
 
-    <span class="c1"># Q11: Only reported GPAs contribute to each average.</span>
+
     <span class="n">result</span><span class="p">[</span><span class="s2">"q11"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
         <span class="n">select</span><span class="p">(</span>
             <span class="n">func</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">gpa</span><span class="p">)</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">ilike</span><span class="p">(</span><span class="s2">"Accepted%"</span><span class="p">)),</span>
@@ -258,12 +258,12 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">average</span><span class="p">(</span><span class="n">number</span><span class="p">):</span>
         <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">number</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">number</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">"no reported values"</span>
 
-    <span class="c1"># M4 CHANGE: a missing percentage used to print "no reported values%"</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">percent</span><span class="p">(</span><span class="n">number</span><span class="p">):</span>
         <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">number</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">%"</span> <span class="k">if</span> <span class="n">number</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">"no reported values"</span>
 
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Fall 2026 applicant count: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'q1'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Percent international: </span><span class="si">{</span><span class="n">percent</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'q2'</span><span class="p">])</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>   <span class="c1"># M4 CHANGE</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Percent international: </span><span class="si">{</span><span class="n">percent</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'q2'</span><span class="p">])</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="n">labels</span> <span class="o">=</span> <span class="p">(</span>
         <span class="s2">"Average GPA"</span><span class="p">,</span>
@@ -275,7 +275,7 @@
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">average</span><span class="p">(</span><span class="n">number</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Average GPA of Americans for Fall 2026: </span><span class="si">{</span><span class="n">average</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'q4'</span><span class="p">])</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Fall 2025 acceptance percentage: </span><span class="si">{</span><span class="n">percent</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'q5'</span><span class="p">])</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>   <span class="c1"># M4 CHANGE</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Fall 2025 acceptance percentage: </span><span class="si">{</span><span class="n">percent</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'q5'</span><span class="p">])</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Average GPA of accepted applicants in Fall 2026: </span><span class="si">{</span><span class="n">average</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s1">'q6'</span><span class="p">])</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Johns Hopkins Computer Science master's entries: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'q7'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span>
@@ -310,7 +310,7 @@
 
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
-    <span class="n">Session</span> <span class="o">=</span> <span class="n">create_session_factory</span><span class="p">()</span>   <span class="c1"># M4 CHANGE: reads DATABASE_URL (no password prompt)</span>
+    <span class="n">Session</span> <span class="o">=</span> <span class="n">create_session_factory</span><span class="p">()</span>
 
     <span class="k">with</span> <span class="n">Session</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
         <span class="n">display</span><span class="p">(</span><span class="n">run_analyses</span><span class="p">(</span><span class="n">session</span><span class="p">))</span>

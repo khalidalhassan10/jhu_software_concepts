@@ -1,11 +1,11 @@
 """Flask web layer: the Analysis page plus the Pull Data and Update Analysis endpoints.
 
-M4 CHANGE: replaces app.py. Everything is built by ``create_app(...)`` so a test can
+Everything is built by ``create_app(...)`` so a test can
 make its own app with fake scraper / loader / query functions and its own database.
 Run: ``flask --app src.flask_app:create_app run`` (from module_4, DATABASE_URL set).
 """
 
-# ---- Block 1: imports ----
+
 import threading
 
 from flask import Flask, jsonify, redirect, render_template, url_for
@@ -17,16 +17,14 @@ from src.models import create_session_factory
 from src.orm_queries import run_analyses
 
 
-# ---- Block 2: the busy flag, shared by the routes ----
-# Tests set state.busy = True directly to simulate "a pull is running" (no sleep() needed).
 class PullState:
     """Whether a pull is running, the last pull's result, and the last analysis read."""
 
     def __init__(self):
-        self._lock = threading.Lock()   # only one route may claim the flag at a time
+        self._lock = threading.Lock()
         self.busy = False
-        self.last_result = None         # e.g. {"ok": True, "inserted": 6}
-        self.analysis = None            # the latest run_analyses() dictionary
+        self.last_result = None
+        self.analysis = None
 
     def start(self):
         """Claim the busy flag. Returns False if a pull is already running."""
@@ -43,8 +41,6 @@ class PullState:
             self.last_result = result
 
 
-# ---- Block 3: formatting - the assignment's rules, in one place ----
-# counts: 29,577   averages: 3.79   percentages: 46.33% (always two decimals)   missing: n/a
 def fmt_count(value):
     """Format a count with thousands separators, or ``n/a``."""
     return "n/a" if value is None else f"{int(value):,}"
@@ -67,7 +63,7 @@ def format_analysis(result):
     :returns: a list of ``(label, answer)`` tuples, one per displayed answer.
     """
     gpa, gre, gre_v, gre_aw = result["q3"]
-    shares = {degree: (count, pct) for degree, count, pct in result["q10"]}   # {} on an empty database
+    shares = {degree: (count, pct) for degree, count, pct in result["q10"]}
     total = result["q10_total"]
     acc_n, acc_avg, rej_n, rej_avg = result["q11"]
 
@@ -104,7 +100,6 @@ def format_analysis(result):
     return [(label, f"Answer: {answer}") for label, answer in items]
 
 
-# ---- Block 4: the real scraper / loader / query, used when a test does not pass fakes ----
 def default_scraper(database_url):
     """Return a no-argument scraper that finds entries newer than the database."""
     def scraper():
@@ -123,13 +118,12 @@ def default_query(database_url):
     """Return a no-argument query that runs the ORM analysis."""
     session_factory = create_session_factory(database_url)
     def query():
-        ensure_table(database_url)      # a brand-new database gets an empty table, not an error page
+        ensure_table(database_url)
         with session_factory() as session:
             return run_analyses(session)
     return query
 
 
-# ---- Block 5: the app factory ----
 def create_app(scraper=None, loader=None, query=None, database_url=None, run_in_background=True):
     """Build the Flask app.
 
@@ -149,7 +143,7 @@ def create_app(scraper=None, loader=None, query=None, database_url=None, run_in_
     state = PullState()
     app.config.update(DATABASE_URL=url, PULL_STATE=state)
 
-    # -- the pull itself: scraper -> loader, then release the busy flag (even on error) --
+
     def run_pull():
         try:
             inserted = loader(scraper())
@@ -161,7 +155,7 @@ def create_app(scraper=None, loader=None, query=None, database_url=None, run_in_
     def index():
         return redirect(url_for("analysis"))
 
-    # -- the page: shows the latest analysis; reads the database on the first visit --
+
     @app.get("/analysis")
     def analysis():
         error = None
@@ -174,7 +168,7 @@ def create_app(scraper=None, loader=None, query=None, database_url=None, run_in_
         return render_template("analysis.html", results=results, busy=state.busy,
                                last_result=state.last_result, error=error)
 
-    # -- Pull Data: 409 if busy; else pull (202 in the background, or 200/500 when synchronous) --
+
     @app.post("/pull-data")
     def pull_data_route():
         if not state.start():
@@ -185,7 +179,7 @@ def create_app(scraper=None, loader=None, query=None, database_url=None, run_in_
         run_pull()
         return jsonify(state.last_result), (200 if state.last_result["ok"] else 500)
 
-    # -- Update Analysis: 409 if busy (and no query runs); else re-read the database --
+
     @app.post("/update-analysis")
     def update_analysis():
         if state.busy:

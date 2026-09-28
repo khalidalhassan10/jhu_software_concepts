@@ -75,16 +75,15 @@
   <h1>Source code for src.models</h1><div class="highlight"><pre>
 <span></span><span class="sd">"""SQLAlchemy model for the existing applicants table."""</span>
 
-<span class="c1"># ---- Block 1: imports ----</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">date</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Date</span><span class="p">,</span> <span class="n">Float</span><span class="p">,</span> <span class="n">Integer</span><span class="p">,</span> <span class="n">Text</span><span class="p">,</span> <span class="n">create_engine</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">sqlalchemy.orm</span><span class="w"> </span><span class="kn">import</span> <span class="n">DeclarativeBase</span><span class="p">,</span> <span class="n">Mapped</span><span class="p">,</span> <span class="n">mapped_column</span><span class="p">,</span> <span class="n">sessionmaker</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">src.db_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_database_url</span>      <span class="c1"># M4 CHANGE: "src." prefix, and DATABASE_URL instead of settings()</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">src.db_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_database_url</span>
 
 
-<span class="c1"># ---- Block 2: the base class every model inherits from ----</span>
 <div class="viewcode-block" id="Base">
 <a class="viewcode-back" href="../../api.html#src.models.Base">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">Base</span><span class="p">(</span><span class="n">DeclarativeBase</span><span class="p">):</span>
@@ -92,7 +91,6 @@
 
 
 
-<span class="c1"># ---- Block 3: the applicants table as a Python class (UNCHANGED from Module 3) ----</span>
 <div class="viewcode-block" id="Applicant">
 <a class="viewcode-back" href="../../api.html#src.models.Applicant">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">Applicant</span><span class="p">(</span><span class="n">Base</span><span class="p">):</span>
@@ -118,9 +116,6 @@
 
 
 
-<span class="c1"># ---- Block 4: M4 CHANGE - the engine now comes from DATABASE_URL ----</span>
-<span class="c1"># SQLAlchemy needs to be told which driver to use: "postgresql://" -&gt; "postgresql+psycopg://"</span>
-<span class="c1"># (psycopg = the same library load_data.py uses). psycopg itself accepts the plain URL.</span>
 <div class="viewcode-block" id="sqlalchemy_url">
 <a class="viewcode-back" href="../../api.html#src.models.sqlalchemy_url">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">sqlalchemy_url</span><span class="p">(</span><span class="n">database_url</span><span class="p">):</span>
@@ -129,11 +124,10 @@
 <span class="sd">    :param database_url: a PostgreSQL URL.</span>
 <span class="sd">    :returns: the same URL with the psycopg driver named.</span>
 <span class="sd">    """</span>
-    <span class="k">return</span> <span class="n">database_url</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"postgresql://"</span><span class="p">,</span> <span class="s2">"postgresql+psycopg://"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># 1 = only the first match</span></div>
+    <span class="k">return</span> <span class="n">database_url</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"postgresql://"</span><span class="p">,</span> <span class="s2">"postgresql+psycopg://"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span></div>
 
 
 
-<span class="c1"># create_engine does NOT connect yet; it connects when a Session first asks for data.</span>
 <div class="viewcode-block" id="create_session_factory">
 <a class="viewcode-back" href="../../api.html#src.models.create_session_factory">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">create_session_factory</span><span class="p">(</span><span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -143,8 +137,8 @@
 <span class="sd">    :returns: a ``sessionmaker``; call it (``Session()``) to open a session.</span>
 <span class="sd">    """</span>
     <span class="n">engine</span> <span class="o">=</span> <span class="n">create_engine</span><span class="p">(</span>
-        <span class="n">sqlalchemy_url</span><span class="p">(</span><span class="n">get_database_url</span><span class="p">(</span><span class="n">database_url</span><span class="p">)),</span>   <span class="c1"># passed-in URL, else DATABASE_URL</span>
-        <span class="n">pool_pre_ping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>                                <span class="c1"># check the connection is alive before using it</span>
+        <span class="n">sqlalchemy_url</span><span class="p">(</span><span class="n">get_database_url</span><span class="p">(</span><span class="n">database_url</span><span class="p">)),</span>
+        <span class="n">pool_pre_ping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="n">sessionmaker</span><span class="p">(</span><span class="n">bind</span><span class="o">=</span><span class="n">engine</span><span class="p">)</span></div>
 

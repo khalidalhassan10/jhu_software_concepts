@@ -1,11 +1,10 @@
 """Pull Data: find Grad Café entries newer than the database and insert them.
 
-M4 CHANGE: split into small functions so tests can replace the parts that touch the
-internet (the page fetcher) or the database, and so the Flask app can call them
-directly instead of starting a subprocess.
+It is split into small functions so tests can replace the parts that touch the
+internet (the page fetcher) or the database, and so the Flask app can call them directly.
 """
 
-# ---- Block 1: imports ----
+
 import sys
 import time
 
@@ -16,11 +15,10 @@ from src.clean import clean_data
 from src.db_config import get_database_url
 from src.load_data import CREATE_TABLE, insert_rows, result_id
 
-MAX_PAGES = 40                  # safety cap: never walk more than 40 pages in one pull
-STOP_AFTER_KNOWN_PAGES = 2      # stop after 2 pages in a row with nothing new
+MAX_PAGES = 40
+STOP_AFTER_KNOWN_PAGES = 2
 
 
-# ---- Block 2: which p_ids does the database already hold? ----
 def known_ids(database_url=None):
     """Return the set of p_ids already stored.
 
@@ -28,13 +26,10 @@ def known_ids(database_url=None):
     :returns: a set of integers.
     """
     with psycopg.connect(get_database_url(database_url)) as conn:
-        conn.execute(CREATE_TABLE)                          # a brand-new database has no table yet
+        conn.execute(CREATE_TABLE)
         return {row[0] for row in conn.execute("SELECT p_id FROM applicants")}
 
 
-# ---- Block 3: walk pages from newest to older, keeping only entries not in `known` ----
-# fetch_page is PASSED IN (Idea 1): the real app passes live_fetcher(), tests pass a
-# function that returns saved HTML. This function never touches the internet itself.
 def scrape_new(known, fetch_page, start_url=scrape.START_URL, max_pages=MAX_PAGES):
     """Collect cleaned entries whose p_id is not in ``known``.
 
@@ -75,7 +70,6 @@ def scrape_new(known, fetch_page, start_url=scrape.START_URL, max_pages=MAX_PAGE
     return new_entries
 
 
-# ---- Block 4: the REAL page fetcher (internet + Chrome) - used by the app, never by tests ----
 def fetch(url, use_chrome):
     """Fetch one page with urllib3, or through the verified Chrome window.
 
@@ -110,18 +104,17 @@ def live_fetcher():
     else:
         raise RuntimeError(f"Grad Café returned HTTP {status}. Pull stopped.")
 
-    saved = {scrape.START_URL: first_html} if first_html else {}    # reuse the probe page
+    saved = {scrape.START_URL: first_html} if first_html else {}
 
     def fetch_page(url):
         if url in saved:
             return saved.pop(url)
-        time.sleep(scrape.DELAY_SECONDS)                             # politeness pause (live only)
+        time.sleep(scrape.DELAY_SECONDS)
         return fetch(url, use_chrome)
 
     return fetch_page
 
 
-# ---- Block 5: the whole pull, for running it from Terminal ----
 def main(database_url=None):
     """Pull new entries from Grad Café and insert them; print a summary.
 
@@ -135,7 +128,7 @@ def main(database_url=None):
     return inserted
 
 
-if __name__ == "__main__":  # pragma: no cover  (tests call main() directly)
+if __name__ == "__main__":  # pragma: no cover
     try:
         main()
     except Exception as exc:

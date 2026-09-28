@@ -7,9 +7,7 @@ How it works:
   3. Parse each page into dictionaries (BeautifulSoup + regex + string methods).
   4. Find the "next page" link by decoding each link's cursor.
 
-M4 CHANGE: the Module 2 bulk scraper (scrape_data, save/load, the progress file and the
-script entry point) was removed. Pull Data (pull_data.py) drives the loop now, and
-every line kept here must be covered by the tests.
+Pull Data (pull_data.py) walks the pages; this module fetches and reads them.
 """
 import base64
 import json
@@ -21,27 +19,26 @@ from urllib.parse import parse_qs, urljoin, urlparse
 import urllib3
 from bs4 import BeautifulSoup
 
-# ---------------------------------------------------------------- settings ---
+
 BASE_URL = "https://www.thegradcafe.com"
 START_URL = BASE_URL + "/survey/"
 ROBOTS_URL = BASE_URL + "/robots.txt"
 USER_AGENT = "jhu-605.256-module2-student-scraper"
-DELAY_SECONDS = 2          # politeness pause between pages
+DELAY_SECONDS = 2
 
-# One PoolManager for every urllib3 request (urllib3 user guide recommends this).
+
 http = urllib3.PoolManager(
     headers={"User-Agent": USER_AGENT},
-    retries=urllib3.Retry(total=1),   # do not hammer the site if it says no
+    retries=urllib3.Retry(total=1),
     timeout=15.0,
 )
 
-# Patterns for the badge row.
+
 TERM_PATTERN = re.compile(r"(Fall|Spring|Summer|Winter)\s+\d{4}")
-# "Accepted on Sep 11" -> group 1 = "Accepted", group 2 = "Sep 11"
+
 DECISION_PATTERN = re.compile(r"^(Accepted|Rejected|Wait listed|Interview|Other)(?:\s+on\s+(.*))?$")
 
-# AppleScript that asks Chrome to open a URL in a new tab, wait for it to load,
-# return the page's HTML, and close the tab. __URL__ is replaced at run time.
+
 CHROME_SCRIPT = '''
 tell application "Google Chrome"
     set theTab to make new tab at end of tabs of front window with properties {URL:"__URL__"}
@@ -58,7 +55,6 @@ end tell
 '''
 
 
-# ------------------------------------------------------------ robots.txt ---
 def _is_challenge_page(html):
     """True if the HTML is Cloudflare's verification page rather than site content."""
     lowered = html.lower()
@@ -104,7 +100,6 @@ def _check_robots():
     return allowed
 
 
-# -------------------------------------------------------------- fetching ---
 def _fetch_with_urllib3(url):
     """Fetch a page directly. Returns (status, html); html is None unless status is 200."""
     response = http.request("GET", url)
@@ -124,20 +119,19 @@ def _fetch_with_chrome(url):
     return result.stdout
 
 
-# --------------------------------------------------------------- parsing ---
 def _empty_entry():
     """A dictionary with every field present and empty, so all entries share the same keys."""
     return {
-        "program": "",           # "Program, University" combined, for the LLM step
+        "program": "",
         "program_name": "",
         "university": "",
         "Degree": "",
         "comments": "",
         "date_added": "",
         "url": "",
-        "status": "",            # raw decision text, e.g. "Accepted on Sep 11"
-        "decision": "",          # "Accepted", "Rejected", "Wait listed", ...
-        "decision_date": "",     # "Sep 11"
+        "status": "",
+        "decision": "",
+        "decision_date": "",
         "term": "",
         "US/International": "",
         "GPA": "",
@@ -217,7 +211,6 @@ def _parse_page(html):
     return entries
 
 
-# ------------------------------------------------------------ next page ---
 def _decode_cursor(cursor):
     """The cursor is base64 text holding JSON; decode it into a dictionary."""
     padded = cursor + "=" * (-len(cursor) % 4)
