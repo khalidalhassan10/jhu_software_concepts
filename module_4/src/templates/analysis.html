@@ -1,0 +1,91 @@
+<!doctype html>
+{# ============================================================
+   analysis.html - the Analysis page (M4 version)
+   From flask_app.py: results = list of (question, "Answer: ...") pairs,
+   busy = a pull is running, last_result = how the last pull ended, error = database error.
+   data-testid="..." = stable names the tests use to find elements.
+   ============================================================ #}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# while a pull runs, reload the page every 5 seconds so the busy notice goes away by itself #}
+  {% if busy %}<meta http-equiv="refresh" content="5">{% endif %}
+  <title>Grad Café | Analysis</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main>
+    {# ---- title bar: Update Analysis at the top right ---- #}
+    <header>
+      <div>
+        <p class="eyebrow">JHU · Module 4</p>
+        <h1>Grad Café Analysis</h1>
+        <p>Results from self-reported applications in our PostgreSQL database.</p>
+      </div>
+      <button class="secondary" type="button" data-testid="update-analysis-btn"
+              onclick="post('{{ url_for('update_analysis') }}', this)">Update Analysis</button>
+    </header>
+
+    {# ---- status messages: every state has one ---- #}
+    {% if error %}
+      <div class="notice" data-testid="error-notice">{{ error }}</div>
+    {% endif %}
+    {% if busy %}
+      <div class="notice" data-testid="busy-notice">
+        New Grad Café data is currently being retrieved. The numbers below are the latest
+        available; Update Analysis is paused until the pull finishes.
+      </div>
+    {% elif last_result and last_result.ok %}
+      <div class="notice" data-testid="pull-notice">
+        Last pull added {{ last_result.inserted }} new entries. Click Update Analysis to include them.
+      </div>
+    {% elif last_result %}
+      <div class="notice" data-testid="pull-notice">Last pull failed: {{ last_result.error }}</div>
+    {% endif %}
+
+    {# ---- Pull Data, with the explanation the assignment asks for ---- #}
+    <section class="pull-panel">
+      <div>
+        <h2>Check for new entries</h2>
+        <p>
+          Pull Data checks the newest Grad Café pages and adds new application entries to the
+          database. Depending on the number of new entries, this may take some time.
+        </p>
+      </div>
+      <button type="button" data-testid="pull-data-btn" {% if busy %}disabled{% endif %}
+              onclick="post('{{ url_for('pull_data_route') }}', this)">Pull Data</button>
+    </section>
+
+    {# ---- the answers: one card per answer, each value starts with "Answer:" ---- #}
+    {% if results %}
+      <p class="caption">
+        Numbers describe submissions in the database, not admission rates for all applicants.
+      </p>
+      <div class="cards">
+        {% for label, answer in results %}
+          <article data-testid="analysis-item">
+            <h3 class="label">{{ label }}</h3>
+            <p class="value">{{ answer }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </main>
+
+  {# ---- the two buttons call the JSON routes, then reload the page ---- #}
+  <script>
+    async function post(path, button) {
+      button.disabled = true;
+      const response = await fetch(path, { method: "POST" });
+      const data = await response.json();
+      if (response.status === 409) {
+        alert("A Pull Data request is already running. Please wait for it to finish.");
+      } else if (!data.ok) {
+        alert("That did not work: " + data.error);
+      }
+      location.reload();
+    }
+  </script>
+</body>
+</html>

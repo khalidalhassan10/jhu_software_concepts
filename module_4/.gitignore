@@ -1,0 +1,4 @@
+llm_hosting/models/
+llm_hosting/work/
+__pycache__/
+.env
