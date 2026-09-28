@@ -1,0 +1,263 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>src.pull_data &mdash; Grad Café Analytics</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=9f5556dd"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Grad Café Analytics
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../overview.html">Overview and setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../testing.html">Testing guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../operations.html">Operational notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Grad Café Analytics</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">src.pull_data</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for src.pull_data</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Pull Data: find Grad Café entries newer than the database and insert them.</span>
+
+<span class="sd">M4 CHANGE: split into small functions so tests can replace the parts that touch the</span>
+<span class="sd">internet (the page fetcher) or the database, and so the Flask app can call them</span>
+<span class="sd">directly instead of starting a subprocess.</span>
+<span class="sd">"""</span>
+
+<span class="c1"># ---- Block 1: imports ----</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">psycopg</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">src</span><span class="w"> </span><span class="kn">import</span> <span class="n">scrape</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">src.clean</span><span class="w"> </span><span class="kn">import</span> <span class="n">clean_data</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">src.db_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_database_url</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">src.load_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">CREATE_TABLE</span><span class="p">,</span> <span class="n">insert_rows</span><span class="p">,</span> <span class="n">result_id</span>
+
+<span class="n">MAX_PAGES</span> <span class="o">=</span> <span class="mi">40</span>                  <span class="c1"># safety cap: never walk more than 40 pages in one pull</span>
+<span class="n">STOP_AFTER_KNOWN_PAGES</span> <span class="o">=</span> <span class="mi">2</span>      <span class="c1"># stop after 2 pages in a row with nothing new</span>
+
+
+<span class="c1"># ---- Block 2: which p_ids does the database already hold? ----</span>
+<div class="viewcode-block" id="known_ids">
+<a class="viewcode-back" href="../../api.html#src.pull_data.known_ids">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">known_ids</span><span class="p">(</span><span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the set of p_ids already stored.</span>
+
+<span class="sd">    :param database_url: optional URL overriding DATABASE_URL.</span>
+<span class="sd">    :returns: a set of integers.</span>
+<span class="sd">    """</span>
+    <span class="k">with</span> <span class="n">psycopg</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">get_database_url</span><span class="p">(</span><span class="n">database_url</span><span class="p">))</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">CREATE_TABLE</span><span class="p">)</span>                          <span class="c1"># a brand-new database has no table yet</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">row</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT p_id FROM applicants"</span><span class="p">)}</span></div>
+
+
+
+<span class="c1"># ---- Block 3: walk pages from newest to older, keeping only entries not in `known` ----</span>
+<span class="c1"># fetch_page is PASSED IN (Idea 1): the real app passes live_fetcher(), tests pass a</span>
+<span class="c1"># function that returns saved HTML. This function never touches the internet itself.</span>
+<div class="viewcode-block" id="scrape_new">
+<a class="viewcode-back" href="../../api.html#src.pull_data.scrape_new">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">scrape_new</span><span class="p">(</span><span class="n">known</span><span class="p">,</span> <span class="n">fetch_page</span><span class="p">,</span> <span class="n">start_url</span><span class="o">=</span><span class="n">scrape</span><span class="o">.</span><span class="n">START_URL</span><span class="p">,</span> <span class="n">max_pages</span><span class="o">=</span><span class="n">MAX_PAGES</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Collect cleaned entries whose p_id is not in ``known``.</span>
+
+<span class="sd">    Stops after ``STOP_AFTER_KNOWN_PAGES`` pages in a row with nothing new, when there</span>
+<span class="sd">    is no next page, or after ``max_pages`` pages.</span>
+
+<span class="sd">    :param known: set of p_ids already stored (it is updated as pages are read).</span>
+<span class="sd">    :param fetch_page: function ``url -&gt; html``.</span>
+<span class="sd">    :param start_url: the first (newest) results page.</span>
+<span class="sd">    :param max_pages: safety cap on pages read.</span>
+<span class="sd">    :returns: the list of new, cleaned entries.</span>
+<span class="sd">    :raises RuntimeError: on a verification page or a page with no entries.</span>
+<span class="sd">    """</span>
+    <span class="n">new_entries</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="n">start_url</span>
+    <span class="n">pages_without_new</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">page_number</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_pages</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">html</span> <span class="o">=</span> <span class="n">fetch_page</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">scrape</span><span class="o">.</span><span class="n">_is_challenge_page</span><span class="p">(</span><span class="n">html</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Grad Café showed a verification page. Verify it in Chrome, then try again."</span><span class="p">)</span>
+        <span class="n">entries</span> <span class="o">=</span> <span class="n">clean_data</span><span class="p">(</span><span class="n">scrape</span><span class="o">.</span><span class="n">_parse_page</span><span class="p">(</span><span class="n">html</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">entries</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Grad Café returned no application entries. Check the page before retrying."</span><span class="p">)</span>
+
+        <span class="n">ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">result_id</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"url"</span><span class="p">))</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">entries</span><span class="p">]</span>
+        <span class="n">fresh</span> <span class="o">=</span> <span class="p">[</span><span class="n">entry</span> <span class="k">for</span> <span class="n">entry</span><span class="p">,</span> <span class="n">p_id</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">entries</span><span class="p">,</span> <span class="n">ids</span><span class="p">)</span> <span class="k">if</span> <span class="n">p_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">p_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">known</span><span class="p">]</span>
+        <span class="n">new_entries</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">fresh</span><span class="p">)</span>
+        <span class="n">known</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">p_id</span> <span class="k">for</span> <span class="n">p_id</span> <span class="ow">in</span> <span class="n">ids</span> <span class="k">if</span> <span class="n">p_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Page </span><span class="si">{</span><span class="n">page_number</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">fresh</span><span class="p">)</span><span class="si">}</span><span class="s2"> new entries"</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">pages_without_new</span> <span class="o">=</span> <span class="mi">0</span> <span class="k">if</span> <span class="n">fresh</span> <span class="k">else</span> <span class="n">pages_without_new</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">pages_without_new</span> <span class="o">&gt;=</span> <span class="n">STOP_AFTER_KNOWN_PAGES</span><span class="p">:</span>
+            <span class="k">break</span>
+        <span class="n">next_url</span> <span class="o">=</span> <span class="n">scrape</span><span class="o">.</span><span class="n">_find_next_url</span><span class="p">(</span><span class="n">html</span><span class="p">,</span> <span class="n">url</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">next_url</span> <span class="ow">or</span> <span class="n">next_url</span> <span class="o">==</span> <span class="n">url</span><span class="p">:</span>
+            <span class="k">break</span>
+        <span class="n">url</span> <span class="o">=</span> <span class="n">next_url</span>
+    <span class="k">return</span> <span class="n">new_entries</span></div>
+
+
+
+<span class="c1"># ---- Block 4: the REAL page fetcher (internet + Chrome) - used by the app, never by tests ----</span>
+<div class="viewcode-block" id="fetch">
+<a class="viewcode-back" href="../../api.html#src.pull_data.fetch">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fetch</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">use_chrome</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Fetch one page with urllib3, or through the verified Chrome window.</span>
+
+<span class="sd">    :raises RuntimeError: if the page could not be fetched.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">use_chrome</span><span class="p">:</span>
+        <span class="n">html</span> <span class="o">=</span> <span class="n">scrape</span><span class="o">.</span><span class="n">_fetch_with_chrome</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">html</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Chrome could not fetch the page. Open and verify Grad Café in Chrome first."</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">html</span>
+    <span class="n">status</span><span class="p">,</span> <span class="n">html</span> <span class="o">=</span> <span class="n">scrape</span><span class="o">.</span><span class="n">_fetch_with_urllib3</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">status</span> <span class="o">!=</span> <span class="mi">200</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">html</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Grad Café returned HTTP </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">. No more pages were requested."</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">html</span></div>
+
+
+
+<div class="viewcode-block" id="live_fetcher">
+<a class="viewcode-back" href="../../api.html#src.pull_data.live_fetcher">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">live_fetcher</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">"""Check robots.txt, probe the site once, and return a ``url -&gt; html`` function.</span>
+
+<span class="sd">    The probe decides between urllib3 and Chrome (403 means Chrome). The returned</span>
+<span class="sd">    function waits ``scrape.DELAY_SECONDS`` between pages to be polite to the site.</span>
+
+<span class="sd">    :raises RuntimeError: if robots.txt does not allow scraping or the site errors.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">scrape</span><span class="o">.</span><span class="n">_check_robots</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"robots.txt could not be confirmed to permit /survey/. Pull stopped."</span><span class="p">)</span>
+    <span class="n">status</span><span class="p">,</span> <span class="n">first_html</span> <span class="o">=</span> <span class="n">scrape</span><span class="o">.</span><span class="n">_fetch_with_urllib3</span><span class="p">(</span><span class="n">scrape</span><span class="o">.</span><span class="n">START_URL</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">status</span> <span class="o">==</span> <span class="mi">403</span><span class="p">:</span>
+        <span class="n">use_chrome</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">elif</span> <span class="n">status</span> <span class="o">==</span> <span class="mi">200</span> <span class="ow">and</span> <span class="n">first_html</span><span class="p">:</span>
+        <span class="n">use_chrome</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Grad Café returned HTTP </span><span class="si">{</span><span class="n">status</span><span class="si">}</span><span class="s2">. Pull stopped."</span><span class="p">)</span>
+
+    <span class="n">saved</span> <span class="o">=</span> <span class="p">{</span><span class="n">scrape</span><span class="o">.</span><span class="n">START_URL</span><span class="p">:</span> <span class="n">first_html</span><span class="p">}</span> <span class="k">if</span> <span class="n">first_html</span> <span class="k">else</span> <span class="p">{}</span>    <span class="c1"># reuse the probe page</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">fetch_page</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">url</span> <span class="ow">in</span> <span class="n">saved</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">saved</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">scrape</span><span class="o">.</span><span class="n">DELAY_SECONDS</span><span class="p">)</span>                             <span class="c1"># politeness pause (live only)</span>
+        <span class="k">return</span> <span class="n">fetch</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">use_chrome</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">fetch_page</span></div>
+
+
+
+<span class="c1"># ---- Block 5: the whole pull, for running it from Terminal ----</span>
+<div class="viewcode-block" id="main">
+<a class="viewcode-back" href="../../api.html#src.pull_data.main">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Pull new entries from Grad Café and insert them; print a summary.</span>
+
+<span class="sd">    :param database_url: optional URL overriding DATABASE_URL.</span>
+<span class="sd">    :returns: the number of rows inserted.</span>
+<span class="sd">    """</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="n">get_database_url</span><span class="p">(</span><span class="n">database_url</span><span class="p">)</span>
+    <span class="n">rows</span> <span class="o">=</span> <span class="n">scrape_new</span><span class="p">(</span><span class="n">known_ids</span><span class="p">(</span><span class="n">url</span><span class="p">),</span> <span class="n">live_fetcher</span><span class="p">())</span>
+    <span class="n">inserted</span> <span class="o">=</span> <span class="n">insert_rows</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">url</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Pull complete: </span><span class="si">{</span><span class="n">inserted</span><span class="si">}</span><span class="s2"> new entries. Refresh the analysis to see updates."</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">inserted</span></div>
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>  <span class="c1"># pragma: no cover  (tests call main() directly)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">main</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Pull failed: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+        <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

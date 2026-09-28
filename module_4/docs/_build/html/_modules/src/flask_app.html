@@ -1,0 +1,341 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>src.flask_app &mdash; Grad Café Analytics</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=9f5556dd"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Grad Café Analytics
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../overview.html">Overview and setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../testing.html">Testing guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../operations.html">Operational notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Grad Café Analytics</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">src.flask_app</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for src.flask_app</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Flask web layer: the Analysis page plus the Pull Data and Update Analysis endpoints.</span>
+
+<span class="sd">M4 CHANGE: replaces app.py. Everything is built by ``create_app(...)`` so a test can</span>
+<span class="sd">make its own app with fake scraper / loader / query functions and its own database.</span>
+<span class="sd">Run: ``flask --app src.flask_app:create_app run`` (from module_4, DATABASE_URL set).</span>
+<span class="sd">"""</span>
+
+<span class="c1"># ---- Block 1: imports ----</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">flask</span><span class="w"> </span><span class="kn">import</span> <span class="n">Flask</span><span class="p">,</span> <span class="n">jsonify</span><span class="p">,</span> <span class="n">redirect</span><span class="p">,</span> <span class="n">render_template</span><span class="p">,</span> <span class="n">url_for</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">src</span><span class="w"> </span><span class="kn">import</span> <span class="n">pull_data</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">src.db_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_database_url</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">src.load_data</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_table</span><span class="p">,</span> <span class="n">insert_rows</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">src.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_session_factory</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">src.orm_queries</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_analyses</span>
+
+
+<span class="c1"># ---- Block 2: the busy flag, shared by the routes ----</span>
+<span class="c1"># Tests set state.busy = True directly to simulate "a pull is running" (no sleep() needed).</span>
+<div class="viewcode-block" id="PullState">
+<a class="viewcode-back" href="../../api.html#src.flask_app.PullState">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PullState</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Whether a pull is running, the last pull's result, and the last analysis read."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>   <span class="c1"># only one route may claim the flag at a time</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">busy</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_result</span> <span class="o">=</span> <span class="kc">None</span>         <span class="c1"># e.g. {"ok": True, "inserted": 6}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">analysis</span> <span class="o">=</span> <span class="kc">None</span>            <span class="c1"># the latest run_analyses() dictionary</span>
+
+<div class="viewcode-block" id="PullState.start">
+<a class="viewcode-back" href="../../api.html#src.flask_app.PullState.start">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Claim the busy flag. Returns False if a pull is already running."""</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">busy</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">busy</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="PullState.finish">
+<a class="viewcode-back" href="../../api.html#src.flask_app.PullState.finish">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">finish</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Release the busy flag and remember how the pull ended."""</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">busy</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">last_result</span> <span class="o">=</span> <span class="n">result</span></div>
+</div>
+
+
+
+<span class="c1"># ---- Block 3: formatting - the assignment's rules, in one place ----</span>
+<span class="c1"># counts: 29,577   averages: 3.79   percentages: 46.33% (always two decimals)   missing: n/a</span>
+<div class="viewcode-block" id="fmt_count">
+<a class="viewcode-back" href="../../api.html#src.flask_app.fmt_count">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fmt_count</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Format a count with thousands separators, or ``n/a``."""</span>
+    <span class="k">return</span> <span class="s2">"n/a"</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2">"</span></div>
+
+
+
+<div class="viewcode-block" id="fmt_avg">
+<a class="viewcode-back" href="../../api.html#src.flask_app.fmt_avg">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fmt_avg</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Format an average with two decimals, or ``n/a``."""</span>
+    <span class="k">return</span> <span class="s2">"n/a"</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span></div>
+
+
+
+<div class="viewcode-block" id="fmt_pct">
+<a class="viewcode-back" href="../../api.html#src.flask_app.fmt_pct">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fmt_pct</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Format a percentage with exactly two decimals and ``%``, or ``n/a``."""</span>
+    <span class="k">return</span> <span class="s2">"n/a"</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">%"</span></div>
+
+
+
+<div class="viewcode-block" id="format_analysis">
+<a class="viewcode-back" href="../../api.html#src.flask_app.format_analysis">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">format_analysis</span><span class="p">(</span><span class="n">result</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Turn the ``run_analyses`` dictionary into ``(question, "Answer: ...")`` pairs.</span>
+
+<span class="sd">    :param result: the dictionary returned by ``orm_queries.run_analyses``.</span>
+<span class="sd">    :returns: a list of ``(label, answer)`` tuples, one per displayed answer.</span>
+<span class="sd">    """</span>
+    <span class="n">gpa</span><span class="p">,</span> <span class="n">gre</span><span class="p">,</span> <span class="n">gre_v</span><span class="p">,</span> <span class="n">gre_aw</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"q3"</span><span class="p">]</span>
+    <span class="n">shares</span> <span class="o">=</span> <span class="p">{</span><span class="n">degree</span><span class="p">:</span> <span class="p">(</span><span class="n">count</span><span class="p">,</span> <span class="n">pct</span><span class="p">)</span> <span class="k">for</span> <span class="n">degree</span><span class="p">,</span> <span class="n">count</span><span class="p">,</span> <span class="n">pct</span> <span class="ow">in</span> <span class="n">result</span><span class="p">[</span><span class="s2">"q10"</span><span class="p">]}</span>   <span class="c1"># {} on an empty database</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"q10_total"</span><span class="p">]</span>
+    <span class="n">acc_n</span><span class="p">,</span> <span class="n">acc_avg</span><span class="p">,</span> <span class="n">rej_n</span><span class="p">,</span> <span class="n">rej_avg</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="s2">"q11"</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">share</span><span class="p">(</span><span class="n">degree</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">degree</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">shares</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s2">"n/a"</span>
+        <span class="n">count</span><span class="p">,</span> <span class="n">pct</span> <span class="o">=</span> <span class="n">shares</span><span class="p">[</span><span class="n">degree</span><span class="p">]</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt_count</span><span class="p">(</span><span class="n">count</span><span class="p">)</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="n">fmt_count</span><span class="p">(</span><span class="n">total</span><span class="p">)</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">fmt_pct</span><span class="p">(</span><span class="n">pct</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span>
+
+    <span class="n">gpa_gap</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">acc_avg</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">rej_avg</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">acc_avg</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">rej_avg</span><span class="si">:</span><span class="s2">+.2f</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">items</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"Q1. Fall 2026 applicant count"</span><span class="p">,</span> <span class="n">fmt_count</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"q1"</span><span class="p">])),</span>
+        <span class="p">(</span><span class="s2">"Q2. Percent international"</span><span class="p">,</span> <span class="n">fmt_pct</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"q2"</span><span class="p">])),</span>
+        <span class="p">(</span><span class="s2">"Q3. Average GPA"</span><span class="p">,</span> <span class="n">fmt_avg</span><span class="p">(</span><span class="n">gpa</span><span class="p">)),</span>
+        <span class="p">(</span><span class="s2">"Q3. Average GRE Quantitative"</span><span class="p">,</span> <span class="n">fmt_avg</span><span class="p">(</span><span class="n">gre</span><span class="p">)),</span>
+        <span class="p">(</span><span class="s2">"Q3. Average GRE Verbal"</span><span class="p">,</span> <span class="n">fmt_avg</span><span class="p">(</span><span class="n">gre_v</span><span class="p">)),</span>
+        <span class="p">(</span><span class="s2">"Q3. Average GRE Analytical Writing"</span><span class="p">,</span> <span class="n">fmt_avg</span><span class="p">(</span><span class="n">gre_aw</span><span class="p">)),</span>
+        <span class="p">(</span><span class="s2">"Q4. Average GPA of American applicants, Fall 2026"</span><span class="p">,</span> <span class="n">fmt_avg</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"q4"</span><span class="p">])),</span>
+        <span class="p">(</span><span class="s2">"Q5. Fall 2025 acceptance percentage"</span><span class="p">,</span> <span class="n">fmt_pct</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"q5"</span><span class="p">])),</span>
+        <span class="p">(</span><span class="s2">"Q6. Average GPA of accepted applicants, Fall 2026"</span><span class="p">,</span> <span class="n">fmt_avg</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"q6"</span><span class="p">])),</span>
+        <span class="p">(</span><span class="s2">"Q7. JHU Computer Science master's entries"</span><span class="p">,</span> <span class="n">fmt_count</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"q7"</span><span class="p">])),</span>
+        <span class="p">(</span><span class="s2">"Q8. Accepted Fall 2026 CS PhD entries at Georgetown, MIT, Stanford, CMU (original fields)"</span><span class="p">,</span>
+         <span class="n">fmt_count</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"q8"</span><span class="p">])),</span>
+        <span class="p">(</span><span class="s2">"Q9. The same count using the LLM-generated fields"</span><span class="p">,</span> <span class="n">fmt_count</span><span class="p">(</span><span class="n">result</span><span class="p">[</span><span class="s2">"q9"</span><span class="p">])),</span>
+        <span class="p">(</span><span class="s2">"Q9. Difference (LLM minus original)"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">'q9'</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">result</span><span class="p">[</span><span class="s1">'q8'</span><span class="p">]</span><span class="si">:</span><span class="s2">+d</span><span class="si">}</span><span class="s2">"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"Q10. Fall 2026 CS entries that are Masters"</span><span class="p">,</span> <span class="n">share</span><span class="p">(</span><span class="s2">"Masters"</span><span class="p">)),</span>
+        <span class="p">(</span><span class="s2">"Q10. Fall 2026 CS entries that are PhD"</span><span class="p">,</span> <span class="n">share</span><span class="p">(</span><span class="s2">"PhD"</span><span class="p">)),</span>
+        <span class="p">(</span><span class="s2">"Q11. Accepted Fall 2026 CS master's entries: average GPA"</span><span class="p">,</span>
+         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt_avg</span><span class="p">(</span><span class="n">acc_avg</span><span class="p">)</span><span class="si">}</span><span class="s2"> (n=</span><span class="si">{</span><span class="n">fmt_count</span><span class="p">(</span><span class="n">acc_n</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"Q11. Rejected Fall 2026 CS master's entries: average GPA"</span><span class="p">,</span>
+         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fmt_avg</span><span class="p">(</span><span class="n">rej_avg</span><span class="p">)</span><span class="si">}</span><span class="s2"> (n=</span><span class="si">{</span><span class="n">fmt_count</span><span class="p">(</span><span class="n">rej_n</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span><span class="p">),</span>
+        <span class="p">(</span><span class="s2">"Q11. GPA difference (accepted minus rejected)"</span><span class="p">,</span> <span class="n">gpa_gap</span> <span class="ow">or</span> <span class="s2">"n/a"</span><span class="p">),</span>
+    <span class="p">]</span>
+    <span class="k">return</span> <span class="p">[(</span><span class="n">label</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"Answer: </span><span class="si">{</span><span class="n">answer</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">answer</span> <span class="ow">in</span> <span class="n">items</span><span class="p">]</span></div>
+
+
+
+<span class="c1"># ---- Block 4: the real scraper / loader / query, used when a test does not pass fakes ----</span>
+<div class="viewcode-block" id="default_scraper">
+<a class="viewcode-back" href="../../api.html#src.flask_app.default_scraper">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">default_scraper</span><span class="p">(</span><span class="n">database_url</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a no-argument scraper that finds entries newer than the database."""</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">scraper</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">pull_data</span><span class="o">.</span><span class="n">scrape_new</span><span class="p">(</span><span class="n">pull_data</span><span class="o">.</span><span class="n">known_ids</span><span class="p">(</span><span class="n">database_url</span><span class="p">),</span> <span class="n">pull_data</span><span class="o">.</span><span class="n">live_fetcher</span><span class="p">())</span>
+    <span class="k">return</span> <span class="n">scraper</span></div>
+
+
+
+<div class="viewcode-block" id="default_loader">
+<a class="viewcode-back" href="../../api.html#src.flask_app.default_loader">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">default_loader</span><span class="p">(</span><span class="n">database_url</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a loader ``rows -&gt; number inserted`` for this database."""</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">loader</span><span class="p">(</span><span class="n">rows</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">insert_rows</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">database_url</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">loader</span></div>
+
+
+
+<div class="viewcode-block" id="default_query">
+<a class="viewcode-back" href="../../api.html#src.flask_app.default_query">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">default_query</span><span class="p">(</span><span class="n">database_url</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a no-argument query that runs the ORM analysis."""</span>
+    <span class="n">session_factory</span> <span class="o">=</span> <span class="n">create_session_factory</span><span class="p">(</span><span class="n">database_url</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">query</span><span class="p">():</span>
+        <span class="n">ensure_table</span><span class="p">(</span><span class="n">database_url</span><span class="p">)</span>      <span class="c1"># a brand-new database gets an empty table, not an error page</span>
+        <span class="k">with</span> <span class="n">session_factory</span><span class="p">()</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">run_analyses</span><span class="p">(</span><span class="n">session</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">query</span></div>
+
+
+
+<span class="c1"># ---- Block 5: the app factory ----</span>
+<div class="viewcode-block" id="create_app">
+<a class="viewcode-back" href="../../api.html#src.flask_app.create_app">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_app</span><span class="p">(</span><span class="n">scraper</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">loader</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">run_in_background</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Build the Flask app.</span>
+
+<span class="sd">    :param scraper: function ``() -&gt; list of entries`` (default: live Grad Café pull).</span>
+<span class="sd">    :param loader: function ``rows -&gt; number inserted`` (default: insert into PostgreSQL).</span>
+<span class="sd">    :param query: function ``() -&gt; analysis dictionary`` (default: the ORM analysis).</span>
+<span class="sd">    :param database_url: overrides DATABASE_URL (tests pass their test database).</span>
+<span class="sd">    :param run_in_background: True = POST /pull-data answers 202 at once and pulls in a</span>
+<span class="sd">        thread; False = it pulls first and answers 200 (tests use False).</span>
+<span class="sd">    :returns: the configured ``Flask`` app.</span>
+<span class="sd">    """</span>
+    <span class="n">app</span> <span class="o">=</span> <span class="n">Flask</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="n">get_database_url</span><span class="p">(</span><span class="n">database_url</span><span class="p">)</span>
+    <span class="n">scraper</span> <span class="o">=</span> <span class="n">scraper</span> <span class="ow">or</span> <span class="n">default_scraper</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="n">loader</span> <span class="o">=</span> <span class="n">loader</span> <span class="ow">or</span> <span class="n">default_loader</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="n">query</span> <span class="o">=</span> <span class="n">query</span> <span class="ow">or</span> <span class="n">default_query</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">PullState</span><span class="p">()</span>
+    <span class="n">app</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">DATABASE_URL</span><span class="o">=</span><span class="n">url</span><span class="p">,</span> <span class="n">PULL_STATE</span><span class="o">=</span><span class="n">state</span><span class="p">)</span>
+
+    <span class="c1"># -- the pull itself: scraper -&gt; loader, then release the busy flag (even on error) --</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">run_pull</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">inserted</span> <span class="o">=</span> <span class="n">loader</span><span class="p">(</span><span class="n">scraper</span><span class="p">())</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">finish</span><span class="p">({</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"inserted"</span><span class="p">:</span> <span class="n">inserted</span><span class="p">})</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">finish</span><span class="p">({</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">error</span><span class="p">)})</span>
+
+    <span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">index</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">redirect</span><span class="p">(</span><span class="n">url_for</span><span class="p">(</span><span class="s2">"analysis"</span><span class="p">))</span>
+
+    <span class="c1"># -- the page: shows the latest analysis; reads the database on the first visit --</span>
+    <span class="nd">@app</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/analysis"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">analysis</span><span class="p">():</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">analysis</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">state</span><span class="o">.</span><span class="n">analysis</span> <span class="o">=</span> <span class="n">query</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="n">error</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Could not read the database: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="n">format_analysis</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">analysis</span><span class="p">)</span> <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">analysis</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="k">return</span> <span class="n">render_template</span><span class="p">(</span><span class="s2">"analysis.html"</span><span class="p">,</span> <span class="n">results</span><span class="o">=</span><span class="n">results</span><span class="p">,</span> <span class="n">busy</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">busy</span><span class="p">,</span>
+                               <span class="n">last_result</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">last_result</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">)</span>
+
+    <span class="c1"># -- Pull Data: 409 if busy; else pull (202 in the background, or 200/500 when synchronous) --</span>
+    <span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/pull-data"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">pull_data_route</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">state</span><span class="o">.</span><span class="n">start</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s2">"busy"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}),</span> <span class="mi">409</span>
+        <span class="k">if</span> <span class="n">run_in_background</span><span class="p">:</span>
+            <span class="n">threading</span><span class="o">.</span><span class="n">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">run_pull</span><span class="p">,</span> <span class="n">daemon</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}),</span> <span class="mi">202</span>
+        <span class="n">run_pull</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">last_result</span><span class="p">),</span> <span class="p">(</span><span class="mi">200</span> <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">last_result</span><span class="p">[</span><span class="s2">"ok"</span><span class="p">]</span> <span class="k">else</span> <span class="mi">500</span><span class="p">)</span>
+
+    <span class="c1"># -- Update Analysis: 409 if busy (and no query runs); else re-read the database --</span>
+    <span class="nd">@app</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/update-analysis"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">update_analysis</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">busy</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s2">"busy"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}),</span> <span class="mi">409</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">analysis</span> <span class="o">=</span> <span class="n">query</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">)}),</span> <span class="mi">500</span>
+        <span class="k">return</span> <span class="n">jsonify</span><span class="p">({</span><span class="s2">"ok"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}),</span> <span class="mi">200</span>
+
+    <span class="k">return</span> <span class="n">app</span></div>
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>  <span class="c1"># pragma: no cover</span>
+    <span class="n">create_app</span><span class="p">()</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">debug</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">use_reloader</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

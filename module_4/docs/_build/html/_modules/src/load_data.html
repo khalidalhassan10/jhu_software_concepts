@@ -1,0 +1,349 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>src.load_data &mdash; Grad Café Analytics</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=9f5556dd"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Grad Café Analytics
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../overview.html">Overview and setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../testing.html">Testing guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../operations.html">Operational notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Grad Café Analytics</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">src.load_data</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for src.load_data</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Load Grad Café applicant records into the PostgreSQL ``applicants`` table.</span>
+
+<span class="sd">Import-safe: importing this module does nothing. Loading happens only when a</span>
+<span class="sd">function is called, or when you run ``python -m src.load_data FILE.json``.</span>
+<span class="sd">"""</span>
+
+<span class="c1"># ---- Block 1: imports ----</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>                                   <span class="c1"># math.isfinite: rejects "nan" and "inf" as GPA/GRE values</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>                                    <span class="c1"># sys.argv: the file name typed after the command</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">psycopg</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">src.db_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_database_url</span>    <span class="c1"># M4 CHANGE: DATABASE_URL instead of a hard-coded database + password prompt</span>
+
+
+<span class="c1"># ---- Block 2: the table and the insert, as constants (schema UNCHANGED from Module 3) ----</span>
+<span class="n">CREATE_TABLE</span> <span class="o">=</span> <span class="s2">"""</span>
+<span class="s2">    CREATE TABLE IF NOT EXISTS applicants (</span>
+<span class="s2">        p_id                     INTEGER PRIMARY KEY,</span>
+<span class="s2">        program                  TEXT,</span>
+<span class="s2">        comments                 TEXT,</span>
+<span class="s2">        date_added               DATE,</span>
+<span class="s2">        url                      TEXT,</span>
+<span class="s2">        status                   TEXT,</span>
+<span class="s2">        term                     TEXT,</span>
+<span class="s2">        us_or_international      TEXT,</span>
+<span class="s2">        gpa                      FLOAT,</span>
+<span class="s2">        gre                      FLOAT,</span>
+<span class="s2">        gre_v                    FLOAT,</span>
+<span class="s2">        gre_aw                   FLOAT,</span>
+<span class="s2">        degree                   TEXT,</span>
+<span class="s2">        llm_generated_program    TEXT,</span>
+<span class="s2">        llm_generated_university TEXT</span>
+<span class="s2">    )</span>
+<span class="s2">"""</span>
+
+<span class="c1"># ON CONFLICT (p_id) DO NOTHING = a row whose p_id already exists is skipped (no duplicates)</span>
+<span class="n">INSERT</span> <span class="o">=</span> <span class="s2">"""</span>
+<span class="s2">    INSERT INTO applicants (</span>
+<span class="s2">        p_id, program, comments, date_added, url,</span>
+<span class="s2">        status, term, us_or_international, gpa, gre,</span>
+<span class="s2">        gre_v, gre_aw, degree, llm_generated_program, llm_generated_university</span>
+<span class="s2">    ) VALUES (</span>
+<span class="s2">        </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">,</span>
+<span class="s2">        </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">,</span>
+<span class="s2">        </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span>
+<span class="s2">    ) ON CONFLICT (p_id) DO NOTHING</span>
+<span class="s2">"""</span>
+
+
+<span class="c1"># ---- Block 3: converters - turn one raw JSON value into a clean database value ----</span>
+<div class="viewcode-block" id="to_text">
+<a class="viewcode-back" href="../../api.html#src.load_data.to_text">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">to_text</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Strip a value to text; empty or missing becomes ``None``.</span>
+
+<span class="sd">    :param value: any value from the JSON file.</span>
+<span class="sd">    :returns: the stripped text, or ``None``.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="kc">None</span>          <span class="c1"># "" after stripping -&gt; None</span></div>
+
+
+
+<div class="viewcode-block" id="to_float">
+<a class="viewcode-back" href="../../api.html#src.load_data.to_float">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">to_float</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Convert text such as ``"3.80"`` to a float; anything unusable becomes ``None``.</span>
+
+<span class="sd">    :param value: any value from the JSON file.</span>
+<span class="sd">    :returns: a finite float, or ``None`` for blanks, text, ``nan`` and ``inf``.</span>
+<span class="sd">    """</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">to_text</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">number</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>                         <span class="c1"># "abc" cannot become a number</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">number</span> <span class="k">if</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">number</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>    <span class="c1"># M4 CHANGE: "nan"/"inf" would corrupt averages</span></div>
+
+
+
+<div class="viewcode-block" id="to_date">
+<a class="viewcode-back" href="../../api.html#src.load_data.to_date">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">to_date</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Convert ``"Sep 12, 2026"`` to a date; blanks and bad formats become ``None``.</span>
+
+<span class="sd">    :param value: any value from the JSON file.</span>
+<span class="sd">    :returns: a ``datetime.date``, or ``None``.</span>
+<span class="sd">    """</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">to_text</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">datetime</span><span class="o">.</span><span class="n">strptime</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s2">"%b </span><span class="si">%d</span><span class="s2">, %Y"</span><span class="p">)</span><span class="o">.</span><span class="n">date</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>                         <span class="c1"># M4 CHANGE: a badly formatted date used to crash the whole load</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="result_id">
+<a class="viewcode-back" href="../../api.html#src.load_data.result_id">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">result_id</span><span class="p">(</span><span class="n">url</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Take the p_id from the end of a Grad Café URL.</span>
+
+<span class="sd">    :param url: e.g. ``"https://www.thegradcafe.com/result/1020482"``.</span>
+<span class="sd">    :returns: ``1020482``, or ``None`` if the URL does not end in a number.</span>
+<span class="sd">    """</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">to_text</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">text</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">last_part</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>      <span class="c1"># the piece after the last "/"</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">last_part</span><span class="p">)</span> <span class="k">if</span> <span class="n">last_part</span><span class="o">.</span><span class="n">isdigit</span><span class="p">()</span> <span class="k">else</span> <span class="kc">None</span></div>
+
+
+
+<span class="c1"># ---- Block 4: one JSON record -&gt; one database row (or None if the record is unusable) ----</span>
+<span class="c1"># M4 CHANGE (grader deduction): a record that is null, not a dictionary, or has no usable URL</span>
+<span class="c1"># used to crash the loader with a TypeError. Now it is skipped.</span>
+<div class="viewcode-block" id="row_to_values">
+<a class="viewcode-back" href="../../api.html#src.load_data.row_to_values">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">row_to_values</span><span class="p">(</span><span class="n">applicant</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Map one scraped record to the 15 column values, in INSERT order.</span>
+
+<span class="sd">    :param applicant: one dictionary from the JSON file.</span>
+<span class="sd">    :returns: a 15-value tuple, or ``None`` if the record is malformed.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">applicant</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>        <span class="c1"># null, a number, a list... -&gt; unusable</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">p_id</span> <span class="o">=</span> <span class="n">result_id</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"url"</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">p_id</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>                           <span class="c1"># no URL, or no number at its end -&gt; no primary key</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">p_id</span><span class="p">,</span>
+        <span class="n">to_text</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"program"</span><span class="p">)),</span>
+        <span class="n">to_text</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"comments"</span><span class="p">)),</span>
+        <span class="n">to_date</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"date_added"</span><span class="p">)),</span>
+        <span class="n">to_text</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"url"</span><span class="p">)),</span>
+        <span class="n">to_text</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"status"</span><span class="p">)),</span>
+        <span class="n">to_text</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"term"</span><span class="p">)),</span>
+        <span class="n">to_text</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"US/International"</span><span class="p">)),</span>
+        <span class="n">to_float</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"GPA"</span><span class="p">)),</span>
+        <span class="n">to_float</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"GRE"</span><span class="p">)),</span>
+        <span class="n">to_float</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"GRE V"</span><span class="p">)),</span>
+        <span class="n">to_float</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"GRE AW"</span><span class="p">)),</span>
+        <span class="n">to_text</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"Degree"</span><span class="p">)),</span>
+        <span class="n">to_text</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"llm-generated-program"</span><span class="p">)),</span>
+        <span class="n">to_text</span><span class="p">(</span><span class="n">applicant</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"llm-generated-university"</span><span class="p">)),</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="c1"># ---- Block 5: database functions - each opens its own connection from DATABASE_URL ----</span>
+<div class="viewcode-block" id="ensure_table">
+<a class="viewcode-back" href="../../api.html#src.load_data.ensure_table">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">ensure_table</span><span class="p">(</span><span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Create the ``applicants`` table if it does not exist yet.</span>
+
+<span class="sd">    :param database_url: optional URL overriding DATABASE_URL.</span>
+<span class="sd">    """</span>
+    <span class="k">with</span> <span class="n">psycopg</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">get_database_url</span><span class="p">(</span><span class="n">database_url</span><span class="p">))</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">CREATE_TABLE</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># "with psycopg.connect(...) as conn:" commits at the end if everything worked,</span>
+<span class="c1"># and ROLLS BACK everything if any insert fails -&gt; never a half-loaded batch.</span>
+<div class="viewcode-block" id="insert_rows">
+<a class="viewcode-back" href="../../api.html#src.load_data.insert_rows">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">insert_rows</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Insert scraped records, skipping malformed ones and p_ids already stored.</span>
+
+<span class="sd">    All rows go in one transaction: if one insert fails, none are kept.</span>
+
+<span class="sd">    :param rows: a list of scraped record dictionaries.</span>
+<span class="sd">    :param database_url: optional URL overriding DATABASE_URL.</span>
+<span class="sd">    :returns: the number of rows actually inserted.</span>
+<span class="sd">    """</span>
+    <span class="n">inserted</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">with</span> <span class="n">psycopg</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">get_database_url</span><span class="p">(</span><span class="n">database_url</span><span class="p">))</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">CREATE_TABLE</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">conn</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span> <span class="k">as</span> <span class="n">cur</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">applicant</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="n">row_to_values</span><span class="p">(</span><span class="n">applicant</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">values</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>                 <span class="c1"># malformed record -&gt; skip it</span>
+                    <span class="k">continue</span>
+                <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">INSERT</span><span class="p">,</span> <span class="n">values</span><span class="p">)</span>
+                <span class="n">inserted</span> <span class="o">+=</span> <span class="n">cur</span><span class="o">.</span><span class="n">rowcount</span>           <span class="c1"># 1 if inserted, 0 if the p_id already existed</span>
+    <span class="k">return</span> <span class="n">inserted</span></div>
+
+
+
+<div class="viewcode-block" id="count_rows">
+<a class="viewcode-back" href="../../api.html#src.load_data.count_rows">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">count_rows</span><span class="p">(</span><span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return how many rows the ``applicants`` table holds.</span>
+
+<span class="sd">    :param database_url: optional URL overriding DATABASE_URL.</span>
+<span class="sd">    """</span>
+    <span class="k">with</span> <span class="n">psycopg</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">get_database_url</span><span class="p">(</span><span class="n">database_url</span><span class="p">))</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"SELECT COUNT(*) FROM applicants"</span><span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="load_file">
+<a class="viewcode-back" href="../../api.html#src.load_data.load_file">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_file</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">database_url</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Read a JSON file of records and insert them.</span>
+
+<span class="sd">    :param path: the JSON file (a list of record dictionaries).</span>
+<span class="sd">    :param database_url: optional URL overriding DATABASE_URL.</span>
+<span class="sd">    :returns: ``(records_read, rows_inserted)``.</span>
+<span class="sd">    """</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">),</span> <span class="n">insert_rows</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">database_url</span><span class="p">)</span></div>
+
+
+
+<span class="c1"># ---- Block 6: the command-line entry point ----</span>
+<span class="c1"># python -m src.load_data                       -&gt; loads llm_extend_applicant_data.json</span>
+<span class="c1"># python -m src.load_data path/to/other.json    -&gt; loads that file</span>
+<div class="viewcode-block" id="main">
+<a class="viewcode-back" href="../../api.html#src.load_data.main">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">argv</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Load a JSON file named on the command line and print a summary.</span>
+
+<span class="sd">    :param argv: argument list (defaults to ``sys.argv[1:]``).</span>
+<span class="sd">    """</span>
+    <span class="n">argv</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="k">if</span> <span class="n">argv</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">argv</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">argv</span> <span class="k">else</span> <span class="s2">"llm_extend_applicant_data.json"</span>
+    <span class="n">read</span><span class="p">,</span> <span class="n">inserted</span> <span class="o">=</span> <span class="n">load_file</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Read </span><span class="si">{</span><span class="n">read</span><span class="si">}</span><span class="s2"> records from </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">."</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Inserted </span><span class="si">{</span><span class="n">inserted</span><span class="si">}</span><span class="s2"> new applicants."</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Applicants stored in PostgreSQL: </span><span class="si">{</span><span class="n">count_rows</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
+
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>  <span class="c1"># pragma: no cover  (tests call main() directly)</span>
+    <span class="n">main</span><span class="p">()</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

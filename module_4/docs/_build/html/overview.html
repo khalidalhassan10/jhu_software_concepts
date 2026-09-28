@@ -1,0 +1,193 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Overview and setup &mdash; Grad Café Analytics</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=9f5556dd"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Architecture" href="architecture.html" />
+    <link rel="prev" title="Grad Café Analytics" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Grad Café Analytics
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Overview and setup</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#requirements">Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#environment-variables">Environment variables</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#create-and-load-the-database">Create and load the database</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#run-the-application">Run the application</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#command-line-scripts">Command-line scripts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#run-the-tests">Run the tests</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="testing.html">Testing guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="operations.html">Operational notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Grad Café Analytics</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Overview and setup</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/overview.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="overview-and-setup">
+<h1>Overview and setup<a class="headerlink" href="#overview-and-setup" title="Link to this heading"></a></h1>
+<section id="requirements">
+<h2>Requirements<a class="headerlink" href="#requirements" title="Link to this heading"></a></h2>
+<ul>
+<li><p>Python 3.12</p></li>
+<li><p>PostgreSQL 16 or newer</p></li>
+<li><p>The packages in <code class="docutils literal notranslate"><span class="pre">module_4/requirements.txt</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>module_4/requirements.txt
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="environment-variables">
+<h2>Environment variables<a class="headerlink" href="#environment-variables" title="Link to this heading"></a></h2>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">DATABASE_URL</span></code> (required)</dt><dd><p>Where the application’s database is. Nothing is hard-coded and there is no password prompt:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">DATABASE_URL</span><span class="o">=</span><span class="s2">"postgresql://postgres:PASSWORD@localhost:5432/gradcafe"</span>
+</pre></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">TEST_DATABASE_URL</span></code> (tests only)</dt><dd><p>A separate database for the test suite. Its name <strong>must end in</strong> <code class="docutils literal notranslate"><span class="pre">_test</span></code>: the tests empty
+the <code class="docutils literal notranslate"><span class="pre">applicants</span></code> table, so they refuse to run against any other database.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>createdb<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>gradcafe_test
+<span class="nb">export</span><span class="w"> </span><span class="nv">TEST_DATABASE_URL</span><span class="o">=</span><span class="s2">"postgresql://postgres:PASSWORD@localhost:5432/gradcafe_test"</span>
+</pre></div>
+</div>
+<p>If <code class="docutils literal notranslate"><span class="pre">TEST_DATABASE_URL</span></code> is not set, the tests fall back to <code class="docutils literal notranslate"><span class="pre">DATABASE_URL</span></code> (this is how
+GitHub Actions runs them), still only if its name ends in <code class="docutils literal notranslate"><span class="pre">_test</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="create-and-load-the-database">
+<h2>Create and load the database<a class="headerlink" href="#create-and-load-the-database" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>createdb<span class="w"> </span>-U<span class="w"> </span>postgres<span class="w"> </span>gradcafe
+<span class="nb">cd</span><span class="w"> </span>module_4
+python<span class="w"> </span>-m<span class="w"> </span>src.load_data<span class="w"> </span>path/to/llm_extend_applicant_data.json
+</pre></div>
+</div>
+<p>Running the loader again inserts nothing new: rows whose <code class="docutils literal notranslate"><span class="pre">p_id</span></code> already exists are skipped.</p>
+</section>
+<section id="run-the-application">
+<h2>Run the application<a class="headerlink" href="#run-the-application" title="Link to this heading"></a></h2>
+<p>From <code class="docutils literal notranslate"><span class="pre">module_4</span></code>, with <code class="docutils literal notranslate"><span class="pre">DATABASE_URL</span></code> set:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>flask<span class="w"> </span>--app<span class="w"> </span>src.flask_app:create_app<span class="w"> </span>run
+</pre></div>
+</div>
+<p>Then open <a class="reference external" href="http://127.0.0.1:5000/analysis">http://127.0.0.1:5000/analysis</a>.</p>
+<p><strong>Pull Data</strong> reads the newest Grad Café pages. Grad Café sometimes refuses scripts (HTTP 403);
+the scraper then reads pages through a Google Chrome window that is already open on
+thegradcafe.com and has passed its verification.</p>
+</section>
+<section id="command-line-scripts">
+<h2>Command-line scripts<a class="headerlink" href="#command-line-scripts" title="Link to this heading"></a></h2>
+<p>From <code class="docutils literal notranslate"><span class="pre">module_4</span></code>:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">src.query_data</span></code></dt><dd><p>Prints the eleven answers, computed in raw SQL.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">src.orm_queries</span></code></dt><dd><p>Prints the same answers, computed through SQLAlchemy.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">src.pull_data</span></code></dt><dd><p>Runs Pull Data without the web page.</p>
+</dd>
+</dl>
+</section>
+<section id="run-the-tests">
+<h2>Run the tests<a class="headerlink" href="#run-the-tests" title="Link to this heading"></a></h2>
+<p>From the repository root, with <code class="docutils literal notranslate"><span class="pre">TEST_DATABASE_URL</span></code> set:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pytest<span class="w"> </span>module_4/tests<span class="w"> </span>-m<span class="w"> </span><span class="s2">"web or buttons or analysis or db or integration"</span>
+</pre></div>
+</div>
+<p>This runs the whole suite and fails unless coverage of <code class="docutils literal notranslate"><span class="pre">module_4/src</span></code> is 100%. See
+<a class="reference internal" href="testing.html"><span class="doc">Testing guide</span></a> for details.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Grad Café Analytics" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="architecture.html" class="btn btn-neutral float-right" title="Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

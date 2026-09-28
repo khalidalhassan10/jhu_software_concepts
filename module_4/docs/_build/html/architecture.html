@@ -1,0 +1,173 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Architecture &mdash; Grad Café Analytics</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=9f5556dd"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="API reference" href="api.html" />
+    <link rel="prev" title="Overview and setup" href="overview.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Grad Café Analytics
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview and setup</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#web-layer">Web layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#etl-layer-extract-transform-load">ETL layer (extract, transform, load)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#database-layer">Database layer</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="testing.html">Testing guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="operations.html">Operational notes</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Grad Café Analytics</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Architecture</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/architecture.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="architecture">
+<h1>Architecture<a class="headerlink" href="#architecture" title="Link to this heading"></a></h1>
+<p>The service has three layers. Each one only talks to the layer next to it.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Browser
+   |  GET /analysis, POST /pull-data, POST /update-analysis
+   v
+Web layer ........ flask_app.py (+ templates/, static/)
+   |                         |
+   | Pull Data               | page / Update Analysis
+   v                         v
+ETL layer ........ pull_data.py -&gt; scrape.py -&gt; clean.py
+   |
+   v
+Database layer ... load_data.py (writes)   models.py + orm_queries.py (reads)
+                   db_config.py (DATABASE_URL)          query_data.py (raw SQL)
+   |
+   v
+PostgreSQL: one table, ``applicants``
+</pre></div>
+</div>
+<section id="web-layer">
+<h2>Web layer<a class="headerlink" href="#web-layer" title="Link to this heading"></a></h2>
+<p><a class="reference internal" href="api.html#module-src.flask_app" title="src.flask_app"><code class="xref py py-mod docutils literal notranslate"><span class="pre">src.flask_app</span></code></a> builds the application with <a class="reference internal" href="api.html#src.flask_app.create_app" title="src.flask_app.create_app"><code class="xref py py-func docutils literal notranslate"><span class="pre">src.flask_app.create_app()</span></code></a>. The factory
+receives three functions, so tests can replace any of them with a fake:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">scraper()</span></code> returns new Grad Café entries (default: the live pull pipeline);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">loader(rows)</span></code> stores them and returns how many were new (default: <a class="reference internal" href="api.html#src.load_data.insert_rows" title="src.load_data.insert_rows"><code class="xref py py-func docutils literal notranslate"><span class="pre">src.load_data.insert_rows()</span></code></a>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">query()</span></code> returns the analysis dictionary (default: <a class="reference internal" href="api.html#src.orm_queries.run_analyses" title="src.orm_queries.run_analyses"><code class="xref py py-func docutils literal notranslate"><span class="pre">src.orm_queries.run_analyses()</span></code></a>).</p></li>
+</ul>
+<p>A <a class="reference internal" href="api.html#src.flask_app.PullState" title="src.flask_app.PullState"><code class="xref py py-class docutils literal notranslate"><span class="pre">src.flask_app.PullState</span></code></a> object holds the busy flag, the last pull’s result and the
+latest analysis. <a class="reference internal" href="api.html#src.flask_app.format_analysis" title="src.flask_app.format_analysis"><code class="xref py py-func docutils literal notranslate"><span class="pre">src.flask_app.format_analysis()</span></code></a> turns the analysis into the labelled,
+formatted answers the page shows.</p>
+</section>
+<section id="etl-layer-extract-transform-load">
+<h2>ETL layer (extract, transform, load)<a class="headerlink" href="#etl-layer-extract-transform-load" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Extract</strong>: <a class="reference internal" href="api.html#module-src.scrape" title="src.scrape"><code class="xref py py-mod docutils literal notranslate"><span class="pre">src.scrape</span></code></a> checks <code class="docutils literal notranslate"><span class="pre">robots.txt</span></code>, fetches pages (urllib3, or Chrome
+after an HTTP 403), parses each page with BeautifulSoup and finds the next page’s link.
+<a class="reference internal" href="api.html#src.pull_data.scrape_new" title="src.pull_data.scrape_new"><code class="xref py py-func docutils literal notranslate"><span class="pre">src.pull_data.scrape_new()</span></code></a> walks the pages from newest to oldest and keeps only
+entries whose <code class="docutils literal notranslate"><span class="pre">p_id</span></code> is not in the database yet.</p></li>
+<li><p><strong>Transform</strong>: <a class="reference internal" href="api.html#src.clean.clean_data" title="src.clean.clean_data"><code class="xref py py-func docutils literal notranslate"><span class="pre">src.clean.clean_data()</span></code></a> removes leftover HTML, decodes entities, trims
+whitespace and drops duplicate entries.</p></li>
+<li><p><strong>Load</strong>: <a class="reference internal" href="api.html#src.load_data.insert_rows" title="src.load_data.insert_rows"><code class="xref py py-func docutils literal notranslate"><span class="pre">src.load_data.insert_rows()</span></code></a> converts every value (text, number, date, NULL)
+and inserts the batch in one transaction.</p></li>
+</ul>
+</section>
+<section id="database-layer">
+<h2>Database layer<a class="headerlink" href="#database-layer" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>One table, <code class="docutils literal notranslate"><span class="pre">applicants</span></code>, with the 15 required Module 3 columns. <code class="docutils literal notranslate"><span class="pre">p_id</span></code> (the number at the
+end of the entry’s URL) is the primary key.</p></li>
+<li><p><a class="reference internal" href="api.html#module-src.db_config" title="src.db_config"><code class="xref py py-mod docutils literal notranslate"><span class="pre">src.db_config</span></code></a> is the only place that knows where the database is (<code class="docutils literal notranslate"><span class="pre">DATABASE_URL</span></code>).</p></li>
+<li><p>Writes use psycopg (<a class="reference internal" href="api.html#module-src.load_data" title="src.load_data"><code class="xref py py-mod docutils literal notranslate"><span class="pre">src.load_data</span></code></a>). Reads for the page use SQLAlchemy
+(<a class="reference internal" href="api.html#module-src.models" title="src.models"><code class="xref py py-mod docutils literal notranslate"><span class="pre">src.models</span></code></a>, <a class="reference internal" href="api.html#module-src.orm_queries" title="src.orm_queries"><code class="xref py py-mod docutils literal notranslate"><span class="pre">src.orm_queries</span></code></a>). <a class="reference internal" href="api.html#module-src.query_data" title="src.query_data"><code class="xref py py-mod docutils literal notranslate"><span class="pre">src.query_data</span></code></a> answers the same questions
+in raw SQL for the command line.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="overview.html" class="btn btn-neutral float-left" title="Overview and setup" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="api.html" class="btn btn-neutral float-right" title="API reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright .</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
