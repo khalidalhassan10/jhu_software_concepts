@@ -182,8 +182,9 @@ prove that a busy Update Analysis re-read nothing.</p></td>
 <section id="busy-state-without-sleep">
 <h2>Busy state without <code class="docutils literal notranslate"><span class="pre">sleep()</span></code><a class="headerlink" href="#busy-state-without-sleep" title="Link to this heading"></a></h2>
 <p>Tests never wait for a real pull. They set <code class="docutils literal notranslate"><span class="pre">app.config[&quot;PULL_STATE&quot;].busy</span> <span class="pre">=</span> <span class="pre">True</span></code> directly
-and check that both buttons answer <code class="docutils literal notranslate"><span class="pre">409</span> <span class="pre">{&quot;busy&quot;:</span> <span class="pre">true}</span></code>. The one background-thread test waits
-on a <code class="docutils literal notranslate"><span class="pre">threading.Event</span></code> that the fake loader sets, which returns the moment the pull finishes.</p>
+and check that both buttons answer <code class="docutils literal notranslate"><span class="pre">409</span> <span class="pre">{&quot;busy&quot;:</span> <span class="pre">true}</span></code>. The background-thread test waits
+on a <code class="docutils literal notranslate"><span class="pre">threading.Event</span></code> set by the fake loader, to confirm the loader was called without an
+arbitrary sleep.</p>
 </section>
 <section id="no-live-internet">
 <h2>No live internet<a class="headerlink" href="#no-live-internet" title="Link to this heading"></a></h2>

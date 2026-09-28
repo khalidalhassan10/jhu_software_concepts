@@ -78,8 +78,9 @@ Busy state without ``sleep()``
 ------------------------------
 
 Tests never wait for a real pull. They set ``app.config["PULL_STATE"].busy = True`` directly
-and check that both buttons answer ``409 {"busy": true}``. The one background-thread test waits
-on a ``threading.Event`` that the fake loader sets, which returns the moment the pull finishes.
+and check that both buttons answer ``409 {"busy": true}``. The background-thread test waits
+on a ``threading.Event`` set by the fake loader, to confirm the loader was called without an
+arbitrary sleep.
 
 No live internet
 ----------------

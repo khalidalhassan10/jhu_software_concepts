@@ -1,7 +1,9 @@
 Architecture
 ============
 
-The service has three layers. Each one only talks to the layer next to it.
+The service separates web, ETL, and database responsibilities. The web layer coordinates
+scraping and loading for Pull Data, and calls the database query functions directly to build
+the analysis for the page and for Update Analysis.
 
 .. code-block:: text
 
@@ -9,14 +11,16 @@ The service has three layers. Each one only talks to the layer next to it.
       |  GET /analysis, POST /pull-data, POST /update-analysis
       v
    Web layer ........ flask_app.py (+ templates/, static/)
-      |                         |
-      | Pull Data               | page / Update Analysis
-      v                         v
-   ETL layer ........ pull_data.py -> scrape.py -> clean.py
-      |
-      v
+      |                                     |
+      | Pull Data                           | page and Update Analysis
+      v                                     |
+   ETL layer ........ pull_data.py          |
+                      -> scrape.py          |
+                      -> clean.py           |
+      |                                     |
+      v  new rows                           v  analysis
    Database layer ... load_data.py (writes)   models.py + orm_queries.py (reads)
-                      db_config.py (DATABASE_URL)          query_data.py (raw SQL)
+                      db_config.py (DATABASE_URL)       query_data.py (raw SQL, command line)
       |
       v
    PostgreSQL: one table, ``applicants``
