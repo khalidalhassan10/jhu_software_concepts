@@ -1,0 +1,128 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pylint:
+    name: Pylint (must be 10/10)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: module_5
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Pylint and fail below 10
+        run: python -m pylint src --fail-under=10
+
+  dependency-graph:
+    name: Dependency graph (pydeps + Graphviz)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: module_5
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Graphviz
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate dependency.svg
+        run: pydeps src --noshow -T svg -o dependency.svg
+
+      - name: Fail if dependency.svg is missing or empty
+        run: test -s dependency.svg
+
+      - name: Keep dependency.svg as a downloadable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-graph
+          path: module_5/dependency.svg
+
+  snyk:
+    name: Snyk scans
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: module_5
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies (Snyk reads the installed packages)
+        run: pip install -r requirements.txt
+
+      - name: Install the Snyk CLI
+        uses: snyk/actions/setup@master
+
+      - name: Snyk Open Source (fails if a dependency has a known vulnerability)
+        run: snyk test --file=requirements.txt --package-manager=pip
+
+      - name: Snyk Code (fails on medium or high issues in our code)
+        run: snyk code test --severity-threshold=medium
+
+  pytest:
+    name: Pytest (100% coverage)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gradcafe_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/gradcafe_test
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies and the project
+        run: |
+          pip install -r module_5/requirements.txt
+          pip install -e module_5
+
+      - name: Run the test suite (fails below 100% coverage)
+        run: pytest module_5/tests -m "web or buttons or analysis or db or integration"
