@@ -73,9 +73,25 @@ def test_pull_data_reports_loader_failure(fake_scraper, fake_query):
     response = client.post("/pull-data")
 
     assert response.status_code == 500
-    assert response.get_json() == {"ok": False, "error": "database is down"}
+    assert response.get_json() == {"ok": False, "error": "Could not pull new data."}
     assert app.config["PULL_STATE"].busy is False
-    assert "Last pull failed: database is down" in client.get("/analysis").get_data(as_text=True)
+    page = client.get("/analysis").get_data(as_text=True)
+    assert "Last pull failed: Could not pull new data." in page
+    assert "database is down" not in page
+
+
+@pytest.mark.buttons
+def test_busy_flag_is_released_after_an_unexpected_error(fake_query):
+    def broken_scraper():
+        raise ValueError("an unexpected bug")
+
+    app = create_app(scraper=broken_scraper, loader=lambda rows: 0, query=fake_query,
+                     database_url="postgresql://unused", run_in_background=False)
+    client = app.test_client()
+
+    assert client.post("/pull-data").status_code == 500
+    assert app.config["PULL_STATE"].busy is False
+    assert client.post("/update-analysis").status_code == 200
 
 
 @pytest.mark.buttons
@@ -89,7 +105,7 @@ def test_update_analysis_reports_query_failure():
     response = app.test_client().post("/update-analysis")
 
     assert response.status_code == 500
-    assert response.get_json() == {"ok": False, "error": "database is down"}
+    assert response.get_json() == {"ok": False, "error": "Could not update the analysis."}
 
 
 @pytest.mark.buttons

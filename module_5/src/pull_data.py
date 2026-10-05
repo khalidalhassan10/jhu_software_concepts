@@ -14,7 +14,7 @@ from psycopg import sql
 
 from src import scrape
 from src.clean import clean_data
-from src.db_config import clamp_limit, get_database_url
+from src.db_config import MAX_LIMIT, clamp_limit, get_database_url
 from src.load_data import TABLE, insert_rows, result_id
 
 
@@ -28,18 +28,25 @@ EXISTING_IDS = sql.SQL("SELECT {key} FROM {table} WHERE {key} = ANY(%s) LIMIT %s
 
 
 def existing_ids(candidate_ids, database_url=None):
-    """Return which of ``candidate_ids`` are already stored (one small query per page).
+    """Return which of ``candidate_ids`` are already stored.
+
+    The ids are checked in batches of at most ``MAX_LIMIT`` (100), so every query keeps a
+    LIMIT that can never cut off a real match.
 
     :param candidate_ids: the p_ids found on one results page (``None`` values are ignored).
     :param database_url: optional URL overriding DATABASE_URL.
     :returns: the set of those p_ids that the table already holds.
     """
     ids = sorted({p_id for p_id in candidate_ids if p_id is not None})
+    found = set()
     if not ids:
-        return set()
+        return found
     with psycopg.connect(get_database_url(database_url)) as conn:
-        rows = conn.execute(EXISTING_IDS, (ids, clamp_limit(len(ids))))
-        return {row[0] for row in rows}
+        for start in range(0, len(ids), MAX_LIMIT):
+            batch = ids[start:start + MAX_LIMIT]
+            rows = conn.execute(EXISTING_IDS, (batch, clamp_limit(len(batch))))
+            found.update(row[0] for row in rows)
+    return found
 
 
 def scrape_new(find_existing, fetch_page, start_url=scrape.START_URL, max_pages=MAX_PAGES):

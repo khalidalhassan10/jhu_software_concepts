@@ -154,11 +154,13 @@ def create_app(scraper=None, loader=None, query=None, database_url=None, run_in_
     app.config.update(DATABASE_URL=url, PULL_STATE=state)
 
     def run_pull():
+        result = {"ok": False, "error": "Could not pull new data."}
         try:
-            inserted = loader(scraper())
-            state.finish({"ok": True, "inserted": inserted})
-        except PULL_ERRORS as error:
-            state.finish({"ok": False, "error": str(error)})
+            result = {"ok": True, "inserted": loader(scraper())}
+        except PULL_ERRORS:
+            app.logger.exception("Pull Data failed")
+        finally:
+            state.finish(result)
 
     @app.get("/")
     def index():
@@ -193,8 +195,9 @@ def create_app(scraper=None, loader=None, query=None, database_url=None, run_in_
             return jsonify({"busy": True}), 409
         try:
             state.analysis = query()
-        except QUERY_ERRORS as exc:
-            return jsonify({"ok": False, "error": str(exc)}), 500
+        except QUERY_ERRORS:
+            app.logger.exception("Update Analysis failed")
+            return jsonify({"ok": False, "error": "Could not update the analysis."}), 500
         return jsonify({"ok": True}), 200
 
     @app.get("/api/applicants")

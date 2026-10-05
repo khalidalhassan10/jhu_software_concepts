@@ -2,7 +2,7 @@
 import psycopg
 import pytest
 
-from src import query_data
+from src import pull_data, query_data
 from src.db_config import clamp_limit
 from src.flask_app import create_app
 from src.load_data import count_rows, insert_rows
@@ -165,3 +165,10 @@ def test_search_endpoint_caps_the_limit(searchable_db, db_client):
 
     assert body["limit"] == 100
     assert body["count"] == 100
+
+
+@pytest.mark.db
+def test_existing_ids_checks_more_than_100_ids_in_batches(searchable_db):
+    candidates = list(range(1, 151))
+
+    assert pull_data.existing_ids(candidates, searchable_db) == set(range(1, 106))
